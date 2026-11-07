@@ -104,7 +104,11 @@ The editions quote your prompts and commit subjects, so treat the data folder as
 
 ## Status
 
-This is a port. The builder, scheduler files and settings are covered by `npm test` on Linux. The macOS and Windows parts (launchd, Task Scheduler, notifications, wallpaper and name lookup) haven't run on real hardware yet.
+[![test](https://github.com/randyellis-wealthberry/inkwell-daily/actions/workflows/test.yml/badge.svg)](https://github.com/randyellis-wealthberry/inkwell-daily/actions/workflows/test.yml)
+
+Every push is tested on macOS, Windows and Ubuntu, on Node 20 and 22. On each, CI runs the unit tests, builds an edition offline, checks the data folder is where that OS keeps it, and runs `status`, `latest`, `config` and `publish --dry-run`. On macOS and Windows it also installs and uninstalls the morning schedule (launchd and Task Scheduler).
+
+Not covered by CI yet, because the runners have no desktop session or Claude login: notifications, the wallpaper and dark-mode lookup, your display name, and publishing to claude.ai. Those need a try on a real Mac and PC.
 
 ## Tests
 
