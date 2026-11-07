@@ -98,3 +98,37 @@ func explicitCommandWins() throws {
     let found = InkwellPaths.locateCLI(home: home, environment: ["INKWELL_CLI": command.path])
     #expect(found?.resolvingSymlinksInPath().path == command.resolvingSymlinksInPath().path)
 }
+
+@Test("A trend response decodes for the menu and window")
+func trendDecodes() throws {
+    let json = """
+    {
+      "end": "2026-11-07",
+      "days": [
+        {"date":"2026-11-06","label":"Fri","prompts":2,"tokens":100},
+        {"date":"2026-11-07","label":"Sat","prompts":0,"tokens":153069145}
+      ],
+      "totalPrompts": 2,
+      "totalTokens": 153069245,
+      "activeDays": 2,
+      "metric": "tokens",
+      "averagePrompts": 0.2857,
+      "averageTokens": 21867020.7,
+      "forecast": {"day":"Sunday","prompts":0,"tokens":41000000,"direction":"down","deltaPercent":-73},
+      "peak": {"date":"2026-11-07","label":"Sat","prompts":0,"tokens":153069145},
+      "busiest": "Sunday",
+      "headline": "The line is easing",
+      "teaser": "Down 73% · tomorrow ~41M",
+      "blurb": "Your agents used 153M tokens."
+    }
+    """
+    let trend = try JSONDecoder().decode(InkwellTrend.self, from: Data(json.utf8))
+    #expect(trend.days.count == 2)
+    #expect(trend.days[1].date == "2026-11-07")
+    #expect(trend.days[1].value(for: "tokens") == 153069145)
+    #expect(trend.metric == "tokens")
+    #expect(trend.forecast.value(for: "tokens") == 41000000)
+    #expect(trend.forecast.direction == "down")
+    #expect(TrendFormat.tokens(1_600_000) == "1.6M")
+    #expect(TrendFormat.tokens(767_000_000) == "767M")
+}

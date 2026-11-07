@@ -10,6 +10,7 @@ Inkwell Daily is the desktop port of the [Omarchy plugin](https://github.com/wea
 - **The meter and the repo desk.** Prompts per agent, and short briefs on each repo's latest commits.
 - **Weather.** Yesterday from Open-Meteo, with an hourly line, rain, wind, sunrise and sunset, and a two-day outlook.
 - **Your week in agents.** Prompts typed per day for the last seven days.
+- **The usage line.** A 14-day line of tokens — or prompts when there are no tokens — with a forecast for tomorrow and a plain-language blurb.
 - **Your inkwell habit.** A five-week ledger of the mornings you opened the paper, with the run, the best run, and the month's count. Opening an edition with `inkwell-daily open` marks the morning; the next edition shows it.
 - **The perks.** Milestone themes unlocked by the mornings you've opened the paper: First Light at 3, Sunday Paper at 7, Nocturne at 14, Sepia at 30, Gilt at 60, Century at 100. Themes stay unlocked; Auto follows your Mac's light or dark.
 - **The model desk.** Yesterday's models and the month to date, ranked by tokens, with a price: OpenCode's own cost where it records one, otherwise estimated at published list prices. It reads Claude Code and Codex token counts, and OpenCode's own model, token and cost records. Any model and provider can appear.
@@ -134,10 +135,13 @@ shows the newest edition and headline, opens today's paper, sets yesterday's
 edition on demand, changes the theme, and has Settings and Launch at Login.
 
 If your Mac hides the menu bar automatically, move the pointer to the top of
-the screen to see it. The app is also attached to each release as
-`InkwellDaily-menubar-macos-arm64.zip` or `-x64.zip`, and it requires macOS 14
-or later. Homebrew installs the command only; use the `.pkg` or the zip for
-the menu bar app.
+the screen to see it. The menu also carries a compact usage line: the last
+fourteen days, a sparkline, tomorrow's forecast, and a blurb. **Usage Trend…**
+opens the full chart, where you can switch between tokens and prompts.
+
+The app is also attached to each release as `InkwellDaily-menubar-macos-arm64.zip`
+or `-x64.zip`, and it requires macOS 14 or later. Homebrew installs the command
+only; use the `.pkg` or the zip for the menu bar app.
 
 ## Commands
 
@@ -149,6 +153,7 @@ the menu bar app.
 | `inkwell-daily status` | `{"latest":…,"unread":…,"run":…,"checkedToday":…,"web":…}` |
 | `inkwell-daily theme [id]` | The milestone themes you've unlocked; set one for the next edition |
 | `inkwell-daily font [id]` | List or set the paper's Google Font pairing |
+| `inkwell-daily trend [--days N] [--date D] [--json]` | Tokens and prompts per day, with a forecast |
 | `inkwell-daily publish [--dry-run]` | Put the newest edition on claude.ai |
 | `inkwell-daily web` | The claude.ai link |
 | `inkwell-daily config` | Where the settings file is, and what's in it |

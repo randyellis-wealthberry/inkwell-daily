@@ -23,6 +23,7 @@ const S = require("../lib/sources.js")
 const PR = require("../lib/prices.js")
 const Themes = require("../lib/themes.js")
 const Fonts = require("../lib/fonts.js")
+const Trend = require("../lib/trend.js")
 const { USAGE } = require("../lib/usage.js")
 
 // A Node SEA executable runs this file from inside the binary: there is no
@@ -46,7 +47,7 @@ function flags(argv) {
   const out = { _: [] }
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]
-    if (a === "--date" || a === "--out" || a === "--prose-file" || a === "--hour") out[a.slice(2)] = argv[++i] || ""
+    if (a === "--date" || a === "--out" || a === "--prose-file" || a === "--hour" || a === "--days") out[a.slice(2)] = argv[++i] || ""
     else if (a.startsWith("--")) out[a.slice(2)] = true
     else out._.push(a)
   }
@@ -87,6 +88,9 @@ function gather(key, opt, cfg) {
     .filter(p => p.commits.length || p.dirty)
   const monthStart = key.slice(0, 8) + "01"
   const usage = C.claudeUsage(monthStart, key).concat(C.codexUsage(monthStart, key), C.opencodeUsage(monthStart, key))
+  const trendFrom = Model.shiftDateKey(key, -13)
+  const trendSessions = C.claudeSessions(trendFrom, key).concat(C.codexSessions(trendFrom, key))
+  const trendUsage = C.claudeUsage(trendFrom, key).concat(C.codexUsage(trendFrom, key), C.opencodeUsage(trendFrom, key))
   const reads = loadReads()
   const theme = C.desktop()
   const chosen = Themes.resolve(cfg.theme, Model.readTotal(reads.days, key), theme.palette)
@@ -115,6 +119,7 @@ function gather(key, opt, cfg) {
     reads: reads,
     modelUsage: usage,
     prices: usage.length ? PR.load(DATA, net) : {},
+    trend: Trend.compute(trendSessions, trendUsage, key, 14),
     week: {}
   }
 }
@@ -406,6 +411,21 @@ function fontCommand(opt, cfg) {
 
 // ---- scheduling ------------------------------------------------------------------------
 
+// `trend` prints the last two weeks of prompts and tokens, with a forecast.
+function trendCommand(opt) {
+  const days = Model.intSetting(opt.days, 14, 7, 31)
+  const end = opt.date && Model.parseDateKey(opt.date) ? opt.date : Model.dateKeyFromDate(new Date())
+  const from = Model.shiftDateKey(end, -(days - 1))
+  const sessions = C.claudeSessions(from, end).concat(C.codexSessions(from, end))
+  const usage = C.claudeUsage(from, end).concat(C.codexUsage(from, end), C.opencodeUsage(from, end))
+  const t = Trend.compute(sessions, usage, end, days)
+  if (opt.json) {
+    process.stdout.write(JSON.stringify(t, null, 2) + "\n")
+    return
+  }
+  process.stdout.write(t.headline + "\n" + t.blurb + "\n")
+}
+
 function install(opt, cfg) {
   const hour = opt.hour !== undefined ? Model.intSetting(opt.hour, 5, 0, 23) : cfg.hour
   const node = P.stableNode(process.execPath)
@@ -484,6 +504,7 @@ async function main() {
     case "status": status(); break
     case "theme": themeCommand(opt, cfg); break
     case "font": fontCommand(opt, cfg); break
+    case "trend": trendCommand(opt); break
     case "publish": publish(opt); break
     case "web": { const s = readJson(path.join(DATA, "web", "state.json")) || {}; const u = Model.artifactUrl(s.url); if (u) process.stdout.write(u + "\n"); break }
     case "install": install(opt, cfg); break
