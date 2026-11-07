@@ -58,6 +58,12 @@ inkwell-daily build          # yesterday's edition, now
 inkwell-daily open
 ```
 
+If Homebrew refuses the third-party tap, trust it once first:
+
+```bash
+brew trust randyellis-wealthberry/tap
+```
+
 Homebrew installs Node for you, so npm is never involved. Upgrades and removal
 go through `brew upgrade` / `brew uninstall`.
 
