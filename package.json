@@ -7,5 +7,5 @@
   "files": ["bin", "lib", "Model.js", "README.md", "LICENSE"],
   "engines": { "node": ">=20" },
   "os": ["darwin", "win32", "linux"],
-  "scripts": { "test": "node --test tests/" }
+  "scripts": { "test": "node --test" }
 }
