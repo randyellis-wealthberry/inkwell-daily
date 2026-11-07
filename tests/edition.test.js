@@ -120,6 +120,16 @@ test("the model desk stays out of a paper with no usage", () => {
   assert.ok(!html.includes('class="models"'))
 })
 
+test("the paper can set its type from a font pairing", () => {
+  const broadsheet = renderEdition(compose(gathering({ font: "broadsheet" })))
+  assert.ok(broadsheet.includes("Playfair+Display"))
+  assert.ok(broadsheet.includes('--f-plate: "Playfair Display", "Times New Roman", Georgia, serif'))
+  assert.ok(!broadsheet.includes("UnifrakturCook"))
+  const inkwell = renderEdition(compose(gathering()))
+  assert.ok(inkwell.includes("UnifrakturCook"))
+  assert.ok(inkwell.includes('--f-serif: "Newsreader"'))
+})
+
 test("the paper prints the milestone themes the habit has earned", () => {
   const days = {}
   for (const k of ["2026-10-08", "2026-10-09", "2026-10-10", "2026-10-11", "2026-10-12", "2026-10-13", "2026-10-14"]) days[k] = 1

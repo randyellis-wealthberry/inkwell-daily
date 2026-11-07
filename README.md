@@ -54,6 +54,7 @@ The morning run sets yesterday's edition once, shows a notification and, with `w
 | `inkwell-daily index` | Every edition |
 | `inkwell-daily status` | `{"latest":…,"unread":…,"run":…,"checkedToday":…,"web":…}` |
 | `inkwell-daily theme [id]` | The milestone themes you've unlocked; set one for the next edition |
+| `inkwell-daily font [id]` | List or set the paper's Google Font pairing |
 | `inkwell-daily publish [--dry-run]` | Put the newest edition on claude.ai |
 | `inkwell-daily web` | The claude.ai link |
 | `inkwell-daily config` | Where the settings file is, and what's in it |
@@ -70,6 +71,7 @@ The morning run sets yesterday's edition once, shows a notification and, with `w
   "prose": false,
   "web": false,
   "theme": "auto",
+  "font": "inkwell",
   "repos": ["~/code/my-app"],
   "latitude": 51.51,
   "longitude": -0.13,
@@ -85,6 +87,7 @@ The morning run sets yesterday's edition once, shows a notification and, with `w
 | `prose` | `false` | Asks Claude Code (`claude -p`, no tools) to rewrite the headlines from the facts. Numbers it adds that aren't in the facts are dropped |
 | `web` | `false` | Publishes each edition to one private claude.ai link |
 | `theme` | `auto` | `auto`, or an unlocked milestone theme (`firstlight`, `sunday`, `nocturne`, `sepia`, `gilt`, `century`) |
+| `font` | `inkwell` | A free Google Font pairing: `inkwell`, `broadsheet`, `gazette`, `modern`, `bodoni`, `weekend`, `literary` |
 | `repos` | `[]` | Extra git repositories for the repo desk. Every repo an agent session ran in that week is included anyway |
 | `latitude`, `longitude`, `place` | not set | Where the weather is for. Without them, wttr.in guesses from your IP address |
 | `units` | `auto` | `metric`, `imperial`, or `auto` from your locale |
@@ -112,6 +115,28 @@ inkwell-daily theme auto     # back to your Mac's light or dark
 | Century | 100 |
 
 The command takes a name or an id (`sunday`, `Sunday Paper`, `sunday-paper`). Setting a theme you haven't earned is refused with the number of mornings still to go.
+
+### Fonts
+
+The paper's type is chosen with `font` in `config.json` or the `font` command. All seven pairings are free Google Fonts; the page loads only the chosen families and falls back to Georgia or your system's monospace if they can't be fetched.
+
+| Pairing | Masthead | Body | Mono |
+| --- | --- | --- | --- |
+| `inkwell` | UnifrakturCook | Newsreader | JetBrains Mono |
+| `broadsheet` | Playfair Display | Source Serif 4 | IBM Plex Mono |
+| `gazette` | UnifrakturCook | Crimson Pro | Courier Prime |
+| `modern` | DM Serif Display | Inter | JetBrains Mono |
+| `bodoni` | Bodoni Moda | Lora | Space Mono |
+| `weekend` | Abril Fatface | Lora | DM Mono |
+| `literary` | Cormorant Garamond | EB Garamond | Inconsolata |
+
+```bash
+inkwell-daily font              # list the pairings
+inkwell-daily font broadsheet   # set the next edition's type
+inkwell-daily font inkwell      # the default blackletter masthead
+```
+
+Fonts and themes are independent: any pairing works with any palette.
 
 ### The paper on the web
 

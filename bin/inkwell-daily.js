@@ -9,6 +9,7 @@
 //   inkwell-daily latest               the newest edition's path
 //   inkwell-daily status               {"latest": …, "unread": …, "web": …}
 //   inkwell-daily theme [id]           the milestone themes you've unlocked
+//   inkwell-daily font [id]            the type pairing for the paper
 //   inkwell-daily publish [--date D] [--dry-run]   put an edition on claude.ai
 //   inkwell-daily install [--hour H]   set the paper each morning (launchd / Task Scheduler)
 //   inkwell-daily uninstall            stop the morning run
@@ -35,6 +36,7 @@ const { privately } = require(path.join(ROOT, "lib/private.js"))
 const S = require(path.join(ROOT, "lib/sources.js"))
 const PR = require(path.join(ROOT, "lib/prices.js"))
 const Themes = require(path.join(ROOT, "lib/themes.js"))
+const Fonts = require(path.join(ROOT, "lib/fonts.js"))
 
 const DATA = P.dataDir()
 const ED_DIR = path.join(DATA, "editions")
@@ -43,7 +45,9 @@ const READ_FILE = path.join(DATA, "read")
 const READS_FILE = path.join(DATA, "reads.json")
 
 function usage() {
-  process.stdout.write(fs.readFileSync(__filename, "utf8").split("\n").slice(1, 17).join("\n").replace(/^\/\/ ?/gm, "") + "\n")
+  const lines = fs.readFileSync(__filename, "utf8").split("\n")
+  const end = lines.findIndex((line, i) => i > 1 && !line.startsWith("//"))
+  process.stdout.write(lines.slice(1, end > 1 ? end : lines.length).map(line => line.replace(/^\/\/ ?/, "")).join("\n") + "\n")
 }
 
 function flags(argv) {
@@ -105,6 +109,7 @@ function gather(key, opt, cfg) {
     home: P.home(),
     reader: C.reader(),
     theme: theme,
+    font: cfg.font,
     wallpaperImage: theme.wallpaperPath ? C.imageData(theme.wallpaperPath, 1920, 70) : "",
     kickoff: [], kickoffWeek: [],
     elevation: null, elevationTomorrow: null, easel: null, easelInstalled: false, easelTomorrow: null, munger: null, mungerTomorrow: null,
@@ -187,7 +192,7 @@ async function build(opt, cfg) {
   const entry = { date: key, title: ed.title, headline: ed.lead.headline, kicker: ed.lead.kicker, deck: ed.lead.deck || "", minutes: g.minutes, weekend: ed.weekend, late: !!late, builtAt: now, path: file }
   const list = index.filter(e => e.date !== key).concat([entry]).sort((a, b) => a.date < b.date ? 1 : -1)
   writeAtomic(indexFile, JSON.stringify({ version: 1, editions: list }, null, 2) + "\n")
-  writeAtomic(path.join(edDir, "index.html"), renderIndex(list, g.theme.palette, g.reader.name))
+  writeAtomic(path.join(edDir, "index.html"), renderIndex(list, g.theme.palette, g.reader.name, Fonts.get(g.font)))
   writeAtomic(path.join(outDir, "latest.html"), "<!doctype html><meta charset=\"utf-8\"><meta http-equiv=\"refresh\" content=\"0; url=editions/" + list[0].date + ".html\"><title>" + Model.APP_NAME + "</title>\n")
 
   const result = { date: key, path: file, headline: entry.headline, minutes: entry.minutes, late: !!late, prose: !!g.prose }
@@ -375,6 +380,38 @@ function themeCommand(opt, cfg) {
   if (p.next) process.stdout.write("\nNext: " + p.next.name + " at " + p.next.at + " mornings (" + p.next.remaining + " to go).\n")
 }
 
+// `font` lists the free Google Font pairings; with an id it sets the next
+// edition's type. No unlocking here: every pairing is free.
+function fontCommand(opt, cfg) {
+  const current = Fonts.get(cfg.font)
+  const want = opt._[0]
+  if (want) {
+    const f = Fonts.byId(want)
+    if (!f) {
+      process.stderr.write('No font "' + want + '". Try: ' + Fonts.FONTS.map(x => x.id).join(", ") + "\n")
+      process.exit(2)
+    }
+    const file = P.configFile()
+    const saved = readJson(file) || {}
+    privately(DATA)
+    fs.mkdirSync(DATA, { recursive: true })
+    writeAtomic(file, JSON.stringify(Object.assign({}, P.DEFAULTS, saved, { font: f.id }), null, 2) + "\n")
+    process.stdout.write("Font set to " + f.name + ". The next edition will use it.\n")
+    return
+  }
+  if (opt.json) {
+    process.stdout.write(JSON.stringify({
+      font: current.id,
+      fonts: Fonts.FONTS.map(f => ({ id: f.id, name: f.name, blurb: f.blurb, active: f.id === current.id }))
+    }, null, 2) + "\n")
+    return
+  }
+  const pad = (s, n) => String(s) + " ".repeat(Math.max(0, n - String(s).length))
+  for (const f of Fonts.FONTS) {
+    process.stdout.write(pad(f.id, 12) + pad(f.name, 13) + f.blurb + (f.id === current.id ? " · in use" : "") + "\n")
+  }
+}
+
 // ---- scheduling ------------------------------------------------------------------------
 
 function install(opt, cfg) {
@@ -453,6 +490,7 @@ async function main() {
     case "latest": { const e = loadIndex()[0]; if (e) process.stdout.write(path.join(ED_DIR, e.date + ".html") + "\n"); break }
     case "status": status(); break
     case "theme": themeCommand(opt, cfg); break
+    case "font": fontCommand(opt, cfg); break
     case "publish": publish(opt); break
     case "web": { const s = readJson(path.join(DATA, "web", "state.json")) || {}; const u = Model.artifactUrl(s.url); if (u) process.stdout.write(u + "\n"); break }
     case "install": install(opt, cfg); break
