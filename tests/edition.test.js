@@ -103,6 +103,62 @@ test("Claude's headlines replace the set ones, the facts stay", () => {
   assert.match(prosePrompt(ed), /Do not add any fact/)
 })
 
+test("the paper prices the models that did the work", () => {
+  const usage = [{ key: "2026-10-15", source: "claude", provider: "anthropic", model: "claude-opus-4-5-20251101", input: 1e6, output: 1e6, cacheRead: 0, cacheWrite: 0, calls: 1 }]
+  const prices = { "anthropic/claude-opus-4-5-20251101": { name: "Claude Opus 4.5", input: 5, output: 25, cacheRead: 0.5, cacheWrite: 6.25 } }
+  const ed = compose(gathering({ modelUsage: usage, prices: prices }))
+  assert.equal(ed.models.day.cost, 30)
+  const html = renderEdition(ed)
+  assert.ok(html.includes('class="models"'))
+  assert.ok(html.includes("The model desk"))
+  assert.ok(html.includes("Claude Opus 4.5"))
+  assert.ok(html.includes("$30.00"))
+})
+
+test("the model desk stays out of a paper with no usage", () => {
+  const html = renderEdition(compose(gathering()))
+  assert.ok(!html.includes('class="models"'))
+})
+
+test("the paper can set its type from a font pairing", () => {
+  const broadsheet = renderEdition(compose(gathering({ font: "broadsheet" })))
+  assert.ok(broadsheet.includes("Playfair+Display"))
+  assert.ok(broadsheet.includes('--f-plate: "Playfair Display", "Times New Roman", Georgia, serif'))
+  assert.ok(!broadsheet.includes("UnifrakturCook"))
+  const inkwell = renderEdition(compose(gathering()))
+  assert.ok(inkwell.includes("UnifrakturCook"))
+  assert.ok(inkwell.includes('--f-serif: "Newsreader"'))
+})
+
+test("the paper prints the milestone themes the habit has earned", () => {
+  const days = {}
+  for (const k of ["2026-10-08", "2026-10-09", "2026-10-10", "2026-10-11", "2026-10-12", "2026-10-13", "2026-10-14"]) days[k] = 1
+  const theme = Object.assign({}, gathering().theme, { chosen: "sunday" })
+  const ed = compose(gathering({ reads: { version: 1, days: days }, theme: theme }))
+  assert.equal(ed.habit.total, 7)
+  assert.equal(ed.perks.unlocked, 2)
+  assert.equal(ed.perks.next.id, "nocturne")
+  assert.equal(ed.perks.themes.find(t => t.id === "sunday").active, true)
+  const html = renderEdition(ed)
+  assert.ok(html.includes("The perks"))
+  assert.ok(html.includes("First Light"))
+  assert.ok(html.includes("Sunday Paper"))
+  assert.ok(html.includes('class="perk on active"'))
+})
+
+test("the paper prints the habit ledger and its run", () => {
+  const days = {}
+  for (const k of ["2026-10-12", "2026-10-13", "2026-10-14", "2026-10-15"]) days[k] = 1
+  const ed = compose(gathering({ reads: { version: 1, days: days } }))
+  assert.equal(ed.habit.run, 4)
+  assert.equal(ed.habit.headline, "4 mornings running")
+  const html = renderEdition(ed)
+  assert.ok(html.includes('class="habit"'))
+  assert.ok(html.includes("Your inkwell habit"))
+  assert.ok(html.includes("4 mornings running"))
+  assert.equal((html.match(/class="cell/g) || []).length, 35)
+})
+
 test("the page escapes what it prints and carries every section", () => {
   const g = gathering()
   g.sessions[0].prompts[0].text = "<script>alert(1)</script> & co"

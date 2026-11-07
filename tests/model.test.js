@@ -62,6 +62,83 @@ test("streaks count unbroken mornings, and unread follows the newest edition", (
   assert.equal(Model.unread([], ""), false)
 })
 
+test("the habit ledger holds the mornings the paper was opened", () => {
+  const ledger = Model.parseReads(JSON.stringify({ days: {
+    "2026-10-12": 10, "2026-10-13": 11, "2026-10-14": 12, "2026-10-10": 9, "nope": 1, "2026-10-11": "x"
+  } }))
+  assert.deepEqual(Object.keys(ledger.days).sort(), ["2026-10-10", "2026-10-12", "2026-10-13", "2026-10-14"])
+  assert.deepEqual(Model.parseReads("not json").days, {})
+  assert.equal(Model.readRun(ledger.days, "2026-10-14"), 3)
+  assert.equal(Model.readRun(ledger.days, "2026-10-15"), 0)
+  assert.equal(Model.readBest(ledger.days), 3)
+
+  const h = Model.habit(ledger.days, "2026-10-14")
+  assert.equal(h.cells.length, 35)
+  assert.equal(h.cells[0].key, "2026-09-14", "the grid starts on a Monday, five weeks back")
+  assert.equal(h.cells.find(c => c.today).key, "2026-10-14")
+  assert.equal(h.cells.filter(c => c.on).length, 4)
+  assert.equal(h.run, 3)
+  assert.equal(h.best, 3)
+  assert.equal(h.month, 4)
+  assert.equal(h.total, 4)
+  assert.equal(h.runStart, "2026-10-12")
+  assert.equal(h.monthLabel, "October 2026")
+  assert.equal(Model.habitLine(h), "3 mornings running")
+
+  // An old edition is a snapshot: mornings after its own day don't count.
+  const old = Model.habit(ledger.days, "2026-10-12")
+  assert.equal(old.total, 2)
+  assert.equal(old.run, 1)
+  assert.ok(old.cells.some(c => c.future && c.key === "2026-10-14"))
+
+  assert.equal(Model.habitLine(Model.habit({}, "2026-10-14")), "The ledger opens")
+  assert.equal(Model.habitLine(Model.habit({ "2026-10-13": 1 }, "2026-10-14")), "The run starts again")
+})
+
+test("the model desk ranks models by tokens and prices them at list rates", () => {
+  const prices = {
+    "anthropic/claude-opus-4-5": { name: "Claude Opus 4.5", input: 5, output: 25, cacheRead: 0.5, cacheWrite: 6.25 },
+    "opencode-go/deepseek-v4.1-flash": { name: "DeepSeek V4.1 Flash", input: 0.15, output: 0.6, cacheRead: 0.003, cacheWrite: 0 }
+  }
+  const usage = [
+    { key: "2026-11-06", source: "opencode", provider: "opencode-go", model: "deepseek-v4.1-flash", input: 1e6, output: 0.5e6, cacheRead: 2e6, cacheWrite: 0, calls: 3 },
+    { key: "2026-11-06", source: "claude", provider: "anthropic", model: "claude-opus-4-5-20251101", input: 100000, output: 50000, cacheRead: 0, cacheWrite: 0, calls: 1 },
+    { key: "2026-10-31", source: "claude", provider: "anthropic", model: "claude-opus-4-5-20251101", input: 1e6, output: 1e6, cacheRead: 0, cacheWrite: 0, calls: 5 }
+  ]
+  const desk = Model.modelDesk(usage, prices, "2026-11-06")
+  assert.equal(desk.day.rows.length, 2)
+  assert.equal(desk.day.rows[0].model, "deepseek-v4.1-flash", "most tokens leads")
+  assert.equal(desk.day.rows[0].tokens, 35e5)
+  assert.equal(desk.day.rows[0].cost.toFixed(3), "0.456")
+  assert.equal(desk.month.rows.length, 2, "October stays out of November's desk")
+  assert.equal(desk.month.calls, 4)
+  assert.ok(desk.month.priced)
+
+  // The date suffix on a Claude id is optional, and the provider hint wins.
+  assert.equal(Model.lookupPrice(prices, "claude-opus-4-5-20251101", "anthropic").name, "Claude Opus 4.5")
+  assert.equal(Model.lookupPrice({ "anthropic/claude-opus-4-5-20251101": prices["anthropic/claude-opus-4-5"] }, "claude-opus-4-5", "anthropic").name, "Claude Opus 4.5")
+  assert.equal(Model.lookupPrice(prices, "gpt-6-luna", "openai"), null)
+  assert.equal(Model.usageCost({ input: 1e6, output: 0, cacheRead: 0, cacheWrite: 0 }, prices["opencode-go/deepseek-v4.1-flash"]), 0.15)
+
+  // OpenCode's own cost wins when it has one, priced catalog or not.
+  const own = Model.modelDesk([{ key: "2026-11-06", source: "opencode", provider: "x", model: "mystery", input: 100, output: 50, calls: 1, cost: 0.25 }], {}, "2026-11-06")
+  assert.equal(own.day.rows[0].priced, true)
+  assert.equal(own.day.rows[0].cost, 0.25)
+  const exact = Model.modelDesk([{ key: "2026-11-06", source: "opencode", provider: "opencode-go", model: "deepseek-v4.1-flash", input: 1e6, output: 0, calls: 1, cost: 0.99 }], prices, "2026-11-06")
+  assert.equal(exact.day.rows[0].cost, 0.99)
+  const bare = Model.modelDesk([{ key: "2026-11-06", source: "claude", provider: "anthropic", model: "mystery", input: 100, output: 50, calls: 1 }], {}, "2026-11-06")
+  assert.equal(bare.day.rows[0].priced, false)
+})
+
+test("the habit counts every morning, even outside the five-week grid", () => {
+  const days = { "2026-07-01": 1, "2026-07-02": 1, "2026-10-14": 1 }
+  assert.equal(Model.readTotal(days, "2026-10-14"), 3)
+  assert.equal(Model.readTotal(days, "2026-07-01"), 1)
+  const h = Model.habit(days, "2026-10-14")
+  assert.equal(h.total, 3, "all told is all time, not just the grid")
+  assert.equal(h.cells.filter(c => c.on).length, 1)
+})
+
 test("reading time is at an unhurried pace and never zero", () => {
   assert.equal(Model.readingMinutes(0), 1)
   assert.equal(Model.readingMinutes(700), 3)

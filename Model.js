@@ -188,6 +188,227 @@ function unread(index, readKey) {
   return !!(index && index.length && index[0].date > String(readKey || ""))
 }
 
+// ---- The habit --------------------------------------------------------------
+// A ledger of the mornings the paper was opened: one date key per day, holding
+// the first open that day in milliseconds. It records the day and nothing else.
+
+function parseReads(text) {
+  var out = { version: 1, days: {} }
+  var data = text
+  if (typeof text === "string") {
+    try { data = JSON.parse(text) } catch (e) { data = null }
+  }
+  if (!data || typeof data !== "object") return out
+  var days = data.days && typeof data.days === "object" ? data.days : data
+  for (var k in days) {
+    if (!Object.prototype.hasOwnProperty.call(days, k)) continue
+    if (!parseDateKey(k)) continue
+    var v = Number(days[k])
+    if (isFinite(v) && v > 0) out.days[k] = v
+  }
+  return out
+}
+
+// Unbroken mornings ending on `key`. A day only counts once the paper was opened.
+function readRun(days, key) {
+  var have = days || {}
+  var n = 0
+  var k = String(key || "")
+  while (k && have[k]) { n++; k = shiftDateKey(k, -1) }
+  return n
+}
+
+// The longest run anywhere in the ledger.
+function readBest(days) {
+  var keys = Object.keys(days || {}).sort()
+  var best = 0, run = 0, prev = ""
+  for (var i = 0; i < keys.length; i++) {
+    run = prev && shiftDateKey(prev, 1) === keys[i] ? run + 1 : 1
+    if (run > best) best = run
+    prev = keys[i]
+  }
+  return best
+}
+
+// Every morning in the ledger up to `key`, not just the five weeks the grid
+// shows. This is what the perks are earned against.
+function readTotal(days, key) {
+  var have = days || {}
+  var end = String(key || "")
+  var n = 0
+  for (var k in have) if (Object.prototype.hasOwnProperty.call(have, k) && k <= end) n++
+  return n
+}
+
+// Five weeks of mornings ending on the edition's own day, Monday first. Days
+// after `key` are marked so the last column can trail off rather than invent
+// tomorrow's check-in.
+function habit(days, key) {
+  var all = days || {}
+  var end = String(key || "")
+  var d = parseDateKey(end)
+  if (!d) return { cells: [], weekdays: [], run: 0, best: 0, month: 0, total: 0, runStart: "", monthLabel: "", end: end }
+  // An old edition is a snapshot: only the mornings up to its own day count.
+  var have = {}
+  for (var day in all) if (Object.prototype.hasOwnProperty.call(all, day) && day <= end) have[day] = all[day]
+  var first = Object.keys(have).sort()[0] || ""
+  var monday = new Date(d.getFullYear(), d.getMonth(), d.getDate() - ((d.getDay() + 6) % 7))
+  var start = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() - 28)
+  var cells = [], month = 0, total = Object.keys(have).length
+  for (var i = 0; i < 35; i++) {
+    var c = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i)
+    var k = dateKeyFromDate(c)
+    var on = !!have[k]
+    if (on && k.slice(0, 7) === end.slice(0, 7)) month++
+    cells.push({ key: k, day: c.getDate(), on: on, before: !!first && k < first, future: k > end, today: k === end })
+  }
+  var run = readRun(have, end)
+  return {
+    cells: cells,
+    weekdays: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+    end: end,
+    run: run,
+    best: readBest(have),
+    month: month,
+    total: total,
+    runStart: run ? shiftDateKey(end, 1 - run) : "",
+    monthLabel: MONTHS[d.getMonth()] + " " + d.getFullYear()
+  }
+}
+
+// The headline over the ledger. "Mornings running" echoes the masthead's own
+// streak, so the two read as one paper.
+function habitLine(h) {
+  var run = Math.floor(Number(h && h.run)) || 0
+  var total = Math.floor(Number(h && h.total)) || 0
+  if (run >= 2) return run + " mornings running"
+  if (run === 1) return "One morning running"
+  if (total > 0) return "The run starts again"
+  return "The ledger opens"
+}
+
+// ---- The model desk ---------------------------------------------------------
+// Who did the work, in tokens, and what it would cost at published list
+// prices. OpenCode records its own cost; Claude Code and Codex only record
+// tokens, so the catalog fills the gap.
+
+var FIRST_PARTY = ["anthropic", "openai", "google", "deepseek", "opencode-go", "opencode"]
+
+function stripModelDate(id) {
+  return String(id || "").replace(/-\d{8}$/, "")
+}
+
+// The catalog is keyed "provider/model". Prefer the provider the session came
+// from, then a first-party one; the date suffix on a Claude id is optional.
+function lookupPrice(catalog, model, provider) {
+  if (!catalog || !model) return null
+  var id = String(model).trim()
+  var hint = String(provider || "").toLowerCase()
+  if (id.indexOf("/") > 0) {
+    var parts = id.split("/")
+    hint = parts.shift().toLowerCase()
+    id = parts.join("/")
+  }
+  if (!id) return null
+  var base = stripModelDate(id)
+  if (hint && catalog[hint + "/" + id]) return catalog[hint + "/" + id]
+  if (hint && catalog[hint + "/" + base]) return catalog[hint + "/" + base]
+  var keys = Object.keys(catalog)
+  var matches = [], dated = []
+  var dateSuffix = new RegExp("^" + id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "-\\d{8}$", "i")
+  for (var i = 0; i < keys.length; i++) {
+    var mid = keys[i].slice(keys[i].indexOf("/") + 1)
+    if (mid === id || mid === base || mid.toLowerCase() === id.toLowerCase() || mid.toLowerCase() === base.toLowerCase()) matches.push(keys[i])
+    else if (dateSuffix.test(mid)) dated.push(keys[i])
+  }
+  if (!matches.length) matches = dated
+  if (!matches.length) return null
+  function rank(key) {
+    var p = key.slice(0, key.indexOf("/")).toLowerCase()
+    if (hint && p === hint) return -1
+    var j = FIRST_PARTY.indexOf(p)
+    return j < 0 ? FIRST_PARTY.length : j
+  }
+  matches.sort(function (a, b) { return rank(a) - rank(b) || a.length - b.length })
+  return catalog[matches[0]]
+}
+
+// Price is per million tokens. A missing price means unknown, not free.
+function usageCost(u, p) {
+  if (!p) return null
+  var m = 1000000
+  return ((Number(u.input) || 0) * (Number(p.input) || 0) +
+    (Number(u.output) || 0) * (Number(p.output) || 0) +
+    (Number(u.cacheRead) || 0) * (Number(p.cacheRead) || 0) +
+    (Number(u.cacheWrite) || 0) * (Number(p.cacheWrite) || 0)) / m
+}
+
+function usageRows(records, prices) {
+  var map = {}, priceCache = {}
+  var list = records || []
+  for (var i = 0; i < list.length; i++) {
+    var u = list[i] || {}
+    var id = String(u.model || "").trim()
+    if (!id) continue
+    var pk = String(u.provider || "") + "\t" + id
+    var price = priceCache[pk]
+    if (price === undefined) price = priceCache[pk] = lookupPrice(prices, id, u.provider)
+    var row = map[id]
+    if (!row) {
+      row = map[id] = {
+        model: id, name: price && price.name ? price.name : id,
+        input: 0, output: 0, cacheRead: 0, cacheWrite: 0, tokens: 0,
+        calls: 0, cost: 0, priced: false, sources: [], share: 0
+      }
+    }
+    row.input += Number(u.input) || 0
+    row.output += Number(u.output) || 0
+    row.cacheRead += Number(u.cacheRead) || 0
+    row.cacheWrite += Number(u.cacheWrite) || 0
+    row.calls += Number(u.calls) || 1
+    // OpenCode records what its provider actually charged; use that when it
+    // has one. Claude Code and Codex only give tokens, so estimate from the
+    // published list price.
+    var c = usageCost(u, price)
+    if (isFinite(Number(u.cost)) && Number(u.cost) > 0) c = Number(u.cost)
+    if (c != null) { row.cost += c; row.priced = true }
+    var src = String(u.source || "")
+    if (src && row.sources.indexOf(src) < 0) row.sources.push(src)
+  }
+  var rows = Object.keys(map).map(function (k) { return map[k] })
+  var totals = { calls: 0, input: 0, output: 0, cacheRead: 0, cacheWrite: 0, tokens: 0, cost: 0, priced: false }
+  for (var r = 0; r < rows.length; r++) {
+    var x = rows[r]
+    x.tokens = x.input + x.output + x.cacheRead + x.cacheWrite
+    x.sources.sort()
+    totals.calls += x.calls
+    totals.input += x.input
+    totals.output += x.output
+    totals.cacheRead += x.cacheRead
+    totals.cacheWrite += x.cacheWrite
+    totals.tokens += x.tokens
+    if (x.priced) { totals.cost += x.cost; totals.priced = true }
+  }
+  // Most used first; cost only breaks a tie.
+  rows.sort(function (a, b) { return b.tokens - a.tokens || (b.priced ? b.cost : 0) - (a.priced ? a.cost : 0) })
+  for (var s = 0; s < rows.length; s++) rows[s].share = totals.tokens > 0 ? rows[s].tokens / totals.tokens * 100 : 0
+  totals.rows = rows.length
+  return { rows: rows, calls: totals.calls, input: totals.input, output: totals.output, cacheRead: totals.cacheRead, cacheWrite: totals.cacheWrite, tokens: totals.tokens, cost: totals.cost, priced: totals.priced }
+}
+
+// Yesterday's desk and the month to date, both ending on the edition's day.
+function modelDesk(usage, prices, key) {
+  var end = String(key || "")
+  var start = end ? end.slice(0, 7) + "-01" : ""
+  var list = usage || []
+  function within(u) { return u && u.key >= start && u.key <= end }
+  return {
+    key: end,
+    day: usageRows(list.filter(function (u) { return within(u) && u.key === end }), prices),
+    month: usageRows(list.filter(within), prices)
+  }
+}
+
 // ---- Words ------------------------------------------------------------------
 
 function countWords(text) {
@@ -654,7 +875,9 @@ if (typeof module !== "undefined") {
     dayNumber: dayNumber, editionNumber: editionNumber, longDate: longDate, shortDate: shortDate, weekday: weekday,
     isWeekendEdition: isWeekendEdition, firstName: firstName, possessive: possessive, mastheadTitle: mastheadTitle,
     greeting: greeting, dueEdition: dueEdition, retryDue: retryDue, RETRY_MS: RETRY_MS, parseIndex: parseIndex, streak: streak, ordinal: ordinal,
-    streakLine: streakLine, unread: unread, countWords: countWords, readingMinutes: readingMinutes,
+    streakLine: streakLine, unread: unread, parseReads: parseReads, readRun: readRun, readBest: readBest, readTotal: readTotal,
+    habit: habit, habitLine: habitLine, stripModelDate: stripModelDate, lookupPrice: lookupPrice,
+    usageCost: usageCost, modelDesk: modelDesk, countWords: countWords, readingMinutes: readingMinutes,
     readingLine: readingLine, stripAccents: stripAccents, storyScore: storyScore, rankStories: rankStories,
     placeStories: placeStories, seededRandom: seededRandom, jumble: jumble, sameLetters: sameLetters,
     parseKeybindings: parseKeybindings, keybindOfDay: keybindOfDay, condition: condition, tempValue: tempValue,
