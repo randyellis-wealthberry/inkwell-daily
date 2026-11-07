@@ -19,9 +19,9 @@ test("the edition number matches the other daily widgets' day number", () => {
 test("the masthead carries your first name, and Sunday's paper is the magazine", () => {
   assert.equal(Model.firstName("Ada Lovelace,,,", "ada"), "Ada")
   assert.equal(Model.firstName("", "ada"), "ada")
-  assert.equal(Model.mastheadTitle("Ada", false), "Ada's Quattro Daily")
-  assert.equal(Model.mastheadTitle("James", true), "James' Quattro Sunday")
-  assert.equal(Model.mastheadTitle("", false), "Quattro Daily")
+  assert.equal(Model.mastheadTitle("Ada", false), "Ada's Inkwell Daily")
+  assert.equal(Model.mastheadTitle("James", true), "James' Inkwell Sunday")
+  assert.equal(Model.mastheadTitle("", false), "Inkwell Daily")
   assert.equal(Model.isWeekendEdition("2026-10-17"), true, "Saturday's news arrives on Sunday")
   assert.equal(Model.isWeekendEdition("2026-10-18"), false)
 })
@@ -169,7 +169,7 @@ test("Claude's prose is kept only where it adds no facts", () => {
 })
 
 test("commands go through argv, never a shell", () => {
-  assert.deepEqual(Model.buildCommand("/p/bin/quattro-daily-build", "2026-10-14", true), ["/p/bin/quattro-daily-build", "--date", "2026-10-14", "--prose"])
+  assert.deepEqual(Model.buildCommand("/p/bin/inkwell-daily-build", "2026-10-14", true), ["/p/bin/inkwell-daily-build", "--date", "2026-10-14", "--prose"])
   assert.deepEqual(Model.openCommand("/x/a b.html"), ["xdg-open", "/x/a b.html"])
   assert.equal(Model.toastCommand("Your paper is here", "x")[0], "omarchy-notification-send")
 })

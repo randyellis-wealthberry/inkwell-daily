@@ -85,15 +85,15 @@ test("a cache too big to be real is ignored", () => {
 
 test("the index keeps only the edition's own path and bounded text", () => {
   const idx = Model.parseIndex(JSON.stringify({ editions: [
-    { date: "2026-10-15", headline: "x".repeat(5000), path: "/home/ada/.local/share/quattro-daily/editions/2026-10-15.html" },
+    { date: "2026-10-15", headline: "x".repeat(5000), path: "/home/ada/.local/share/inkwell-daily/editions/2026-10-15.html" },
     { date: "2026-10-14", headline: { a: 1 }, path: "/home/ada/.ssh/id_ed25519" },
-    { date: "2026-10-13", path: "/home/ada/x/../../ada/.local/share/quattro-daily/editions/2026-10-13.html" },
+    { date: "2026-10-13", path: "/home/ada/x/../../ada/.local/share/inkwell-daily/editions/2026-10-13.html" },
     { date: "2026-10-12", path: "https://evil.example/editions/2026-10-12.html" },
     { date: "2026-10-11/../../x" }
   ] }))
   assert.equal(idx.length, 4)
   assert.equal(idx[0].headline.length, 300)
-  assert.equal(idx[0].path, "/home/ada/.local/share/quattro-daily/editions/2026-10-15.html")
+  assert.equal(idx[0].path, "/home/ada/.local/share/inkwell-daily/editions/2026-10-15.html")
   assert.equal(idx[1].headline, "")
   assert.equal(idx[1].path, "")
   assert.equal(idx[2].path, "")
@@ -109,9 +109,9 @@ test("last time's state can't put a strange file name in the publishing prompt",
 const P = require("../lib/platform.js")
 
 test("each platform keeps the paper in its own place", () => {
-  assert.equal(P.dataDir("darwin", {}, "/Users/ada"), "/Users/ada/Library/Application Support/QuattroDaily")
-  assert.equal(P.dataDir("win32", { LOCALAPPDATA: "C:\\Users\\ada\\AppData\\Local" }, "C:\\Users\\ada"), "C:\\Users\\ada\\AppData\\Local\\QuattroDaily")
-  assert.equal(P.dataDir("linux", {}, "/home/ada"), "/home/ada/.local/share/quattro-daily")
+  assert.equal(P.dataDir("darwin", {}, "/Users/ada"), "/Users/ada/Library/Application Support/InkwellDaily")
+  assert.equal(P.dataDir("win32", { LOCALAPPDATA: "C:\\Users\\ada\\AppData\\Local" }, "C:\\Users\\ada"), "C:\\Users\\ada\\AppData\\Local\\InkwellDaily")
+  assert.equal(P.dataDir("linux", {}, "/home/ada"), "/home/ada/.local/share/inkwell-daily")
 })
 
 test("toasts take their text from the environment, never the script", () => {
@@ -123,9 +123,9 @@ test("toasts take their text from the environment, never the script", () => {
 })
 
 test("the schedulers' files escape their paths", () => {
-  assert.match(P.launchdPlist("/usr/local/bin/node", "/a&b/quattro-daily.js", 5, "/x"), /\/a&amp;b\/quattro-daily\.js/)
+  assert.match(P.launchdPlist("/usr/local/bin/node", "/a&b/inkwell-daily.js", 5, "/x"), /\/a&amp;b\/inkwell-daily\.js/)
   assert.match(P.launchdPlist("/n", "/s", 7, "/x"), /<key>Hour<\/key>\s*<integer>7<\/integer>/)
-  assert.match(P.taskXml("C:\\node.exe", "C:\\q\\quattro-daily.js", 5), /T05:00:00/)
+  assert.match(P.taskXml("C:\\node.exe", "C:\\q\\inkwell-daily.js", 5), /T05:00:00/)
 })
 
 test("a settings file is read defensively", () => {

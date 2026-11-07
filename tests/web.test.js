@@ -25,13 +25,13 @@ test("yesterday's photos are removed from the artifact", () => {
 })
 
 test("the publishing session gets Artifact, and Read and Write only on the web copy", () => {
-  const cmd = Model.publishCommand("/home/ada/.local/share/quattro-daily/web", "hi")
+  const cmd = Model.publishCommand("/home/ada/.local/share/inkwell-daily/web", "hi")
   assert.equal(cmd[0], "claude")
   assert.ok(cmd.includes("--bg") && cmd.includes("--strict-mcp-config"))
   assert.equal(cmd[cmd.indexOf("--tools") + 1], "Read,Write,Artifact")
   assert.equal(cmd[cmd.indexOf("--permission-mode") + 1], "dontAsk")
-  assert.ok(cmd.includes("Read(//home/ada/.local/share/quattro-daily/web/**)"))
-  assert.ok(cmd.includes("Edit(//home/ada/.local/share/quattro-daily/web/link.txt)"), "path rules for writing are spelled Edit")
+  assert.ok(cmd.includes("Read(//home/ada/.local/share/inkwell-daily/web/**)"))
+  assert.ok(cmd.includes("Edit(//home/ada/.local/share/inkwell-daily/web/link.txt)"), "path rules for writing are spelled Edit")
   assert.ok(!cmd.some(a => /^Write\(/.test(a)), "a Write(path) rule would match nothing")
   assert.ok(!cmd.some(a => /Bash|dangerously|bypass|^Edit$|Edit\(\/\/[^)]*\*/.test(a)), "no shell, no blanket edits")
   assert.equal(cmd[cmd.length - 2], "--", "the prompt can't be read as a flag")

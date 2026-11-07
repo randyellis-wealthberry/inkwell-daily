@@ -21,14 +21,14 @@ test("the paper and its web copy are private under a umask of 022, and old files
   const home = fs.mkdtempSync(path.join(os.tmpdir(), "daily-test-"))
   try {
     // What an older version left behind: readable by everyone.
-    const data = path.join(home, ".local/share/quattro-daily")
+    const data = path.join(home, ".local/share/inkwell-daily")
     fs.mkdirSync(path.join(data, "editions"), { recursive: true, mode: 0o755 })
     fs.chmodSync(data, 0o755)
     fs.writeFileSync(path.join(data, "editions/2026-10-12.json"), "{}\n", { mode: 0o644 })
 
     const env = Object.assign({}, process.env, { HOME: home, XDG_DATA_HOME: "" })
     const run = "umask 022 && node \"$1\" build --offline --date 2026-10-14 >/dev/null && node \"$1\" publish --dry-run >/dev/null"
-    execFileSync("sh", ["-c", run, "sh", path.join(BIN, "quattro-daily.js")], { env: env, timeout: 60000 })
+    execFileSync("sh", ["-c", run, "sh", path.join(BIN, "inkwell-daily.js")], { env: env, timeout: 60000 })
 
     const all = modes(data, [[data, true, fs.statSync(data).mode & 0o777]])
     for (const want of ["editions/2026-10-14.html", "editions/2026-10-14.json", "editions/index.html", "editions.json", "latest.html", "web/index.html", "web/img"]) {

@@ -1,17 +1,17 @@
 #!/usr/bin/env node
-// Quattro Daily for macOS and Windows: a morning newspaper about yesterday's
+// Inkwell Daily for macOS and Windows: a morning newspaper about yesterday's
 // agent work and commits, set from your own machine.
 //
-//   quattro-daily build [--date YYYY-MM-DD] [--prose] [--offline] [--print-prompt] [--out DIR]
-//   quattro-daily morning              set yesterday's edition if it isn't yet, toast, publish
-//   quattro-daily open [YYYY-MM-DD]    read the newest (or that) edition in your browser
-//   quattro-daily index                every edition, in your browser
-//   quattro-daily latest               the newest edition's path
-//   quattro-daily status               {"latest": …, "unread": …, "web": …}
-//   quattro-daily publish [--date D] [--dry-run]   put an edition on claude.ai
-//   quattro-daily install [--hour H]   set the paper each morning (launchd / Task Scheduler)
-//   quattro-daily uninstall            stop the morning run
-//   quattro-daily config               where the settings file is, and what's in it
+//   inkwell-daily build [--date YYYY-MM-DD] [--prose] [--offline] [--print-prompt] [--out DIR]
+//   inkwell-daily morning              set yesterday's edition if it isn't yet, toast, publish
+//   inkwell-daily open [YYYY-MM-DD]    read the newest (or that) edition in your browser
+//   inkwell-daily index                every edition, in your browser
+//   inkwell-daily latest               the newest edition's path
+//   inkwell-daily status               {"latest": …, "unread": …, "web": …}
+//   inkwell-daily publish [--date D] [--dry-run]   put an edition on claude.ai
+//   inkwell-daily install [--hour H]   set the paper each morning (launchd / Task Scheduler)
+//   inkwell-daily uninstall            stop the morning run
+//   inkwell-daily config               where the settings file is, and what's in it
 
 "use strict"
 
@@ -116,7 +116,7 @@ function askClaude(prompt, cwd) {
 
 function build(opt, cfg) {
   const key = opt.date || yesterday()
-  if (!Model.parseDateKey(key)) { process.stderr.write("quattro-daily: bad --date " + key + "\n"); process.exit(2) }
+  if (!Model.parseDateKey(key)) { process.stderr.write("inkwell-daily: bad --date " + key + "\n"); process.exit(2) }
   const outDir = opt.out || DATA
   const edDir = path.join(outDir, "editions")
   privately(outDir)
@@ -308,7 +308,7 @@ function install(opt, cfg) {
     if (!r.ok) { process.stderr.write("launchctl bootstrap failed:\n" + r.out + "\n"); process.exit(1) }
     process.stdout.write("The paper will be set each morning at " + hour + ":00 (or when your Mac next wakes).\nlaunchd job: " + plist + "\n")
   } else if (process.platform === "win32") {
-    const xml = path.join(os.tmpdir(), "quattro-daily-task-" + process.pid + ".xml")
+    const xml = path.join(os.tmpdir(), "inkwell-daily-task-" + process.pid + ".xml")
     // schtasks wants the XML in UTF-16 with a byte-order mark.
     fs.writeFileSync(xml, Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from(P.taskXml(node, script, hour), "utf16le")]))
     const r = runCapture(["schtasks.exe", "/Create", "/F", "/TN", P.TASK_NAME, "/XML", xml])
@@ -345,7 +345,7 @@ function main() {
       const index = loadIndex()
       const key = opt._[0] || (index[0] && index[0].date)
       const file = key && path.join(ED_DIR, key + ".html")
-      if (!file || !fs.existsSync(file)) { process.stderr.write("No edition yet. Set one with: quattro-daily build\n"); process.exit(1) }
+      if (!file || !fs.existsSync(file)) { process.stderr.write("No edition yet. Set one with: inkwell-daily build\n"); process.exit(1) }
       markRead(key)
       openPath(file)
       break

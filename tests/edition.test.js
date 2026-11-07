@@ -43,7 +43,7 @@ test("a day of your own work leads the paper", () => {
   assert.equal(ed.lead.kind, "desk")
   assert.equal(ed.lead.headline, "1 commit landed in Isobar")
   assert.equal(ed.desk, null)
-  assert.equal(ed.title, "Ada's Quattro Daily")
+  assert.equal(ed.title, "Ada's Inkwell Daily")
   assert.match(ed.lead.paragraphs[0], /^At 4:19 pm, in ~\/Work, you asked Claude Code: “make me a beautiful weather plugin”/)
   assert.equal(ed.week.days.length, 7)
   assert.equal(ed.week.days[6].count, 2)
@@ -71,7 +71,7 @@ test("a quiet day lets the building lead, with its own story", () => {
 test("Saturday's news becomes the Sunday magazine", () => {
   const ed = compose(gathering({ key: "2026-10-17" }))
   assert.equal(ed.weekend, true)
-  assert.equal(ed.title, "Ada's Quattro Sunday")
+  assert.equal(ed.title, "Ada's Inkwell Sunday")
   assert.equal(ed.magazine.days.length, 7)
   assert.equal(ed.magazine.days[4].prompts, 2, "Thursday's prompts appear in the week")
 })
@@ -117,7 +117,7 @@ test("the page escapes what it prints and carries every section", () => {
 test("the masthead escapes the reader's name", () => {
   const html = renderEdition(compose(gathering({ reader: { name: "<img src=x onerror=alert(1)>" } })))
   assert.ok(!html.includes("<img src=x"))
-  assert.ok(html.includes("&lt;img src=x onerror=alert(1)&gt;&#39;s Quattro <span>Daily</span>"))
+  assert.ok(html.includes("&lt;img src=x onerror=alert(1)&gt;&#39;s Inkwell <span>Daily</span>"))
 })
 
 test("without the daily picks, the page leaves out the fold and today's picks", () => {

@@ -1,8 +1,8 @@
-# Quattro Daily for macOS and Windows
+# Inkwell Daily for macOS and Windows
 
 A morning newspaper about yesterday on your machine. It's set from what actually happened: the Claude Code and Codex sessions you ran, the commits that landed in the repos you worked in, and the weather. It's laid over your own desktop picture, in light or dark to match your system, as one page you open in your browser over coffee.
 
-This is the desktop port of the [Omarchy plugin](https://github.com/wealthberrylabs/omarchy-daily-plugin). The builder is the same; the Omarchy bar, panel and sibling widgets (Elevation, Easel, Munger, Kickoff, Isobar, Carrel) aren't here, so their sections stay out of the page.
+Inkwell Daily is the desktop port of the [Omarchy plugin](https://github.com/wealthberrylabs/omarchy-daily-plugin). The builder is the same; the Omarchy bar, panel and sibling widgets (Elevation, Easel, Munger, Kickoff, Isobar, Carrel) aren't here, so their sections stay out of the page.
 
 ## What's on the page
 
@@ -24,38 +24,38 @@ This is the desktop port of the [Omarchy plugin](https://github.com/wealthberryl
 ## Install
 
 ```bash
-git clone https://github.com/wealthberrylabs/quattro-daily-desktop.git
-cd quattro-daily-desktop
-npm install -g .          # puts `quattro-daily` on your PATH
-quattro-daily install     # set the paper every morning at 5
-quattro-daily build       # set yesterday's edition now
-quattro-daily open
+git clone https://github.com/wealthberrylabs/inkwell-daily.git
+cd inkwell-daily
+npm install -g .          # puts `inkwell-daily` on your PATH
+inkwell-daily install     # set the paper every morning at 5
+inkwell-daily build       # set yesterday's edition now
+inkwell-daily open
 ```
 
 `install` registers the morning run:
 
-- **macOS.** A launchd agent at `~/Library/LaunchAgents/com.wealthberrylabs.quattro-daily.plist`. If your Mac was asleep at the hour, it runs when the Mac wakes.
-- **Windows.** A Task Scheduler task named `QuattroDaily`. It runs daily at the hour, at sign-in, and as soon as it can after a missed start.
+- **macOS.** A launchd agent at `~/Library/LaunchAgents/com.wealthberrylabs.inkwell-daily.plist`. If your Mac was asleep at the hour, it runs when the Mac wakes.
+- **Windows.** A Task Scheduler task named `InkwellDaily`. It runs daily at the hour, at sign-in, and as soon as it can after a missed start.
 
-The morning run sets yesterday's edition once, shows a notification and, with `web` on, publishes it. Later runs that day do nothing. To pick another hour, run `quattro-daily install --hour 7`.
+The morning run sets yesterday's edition once, shows a notification and, with `web` on, publishes it. Later runs that day do nothing. To pick another hour, run `inkwell-daily install --hour 7`.
 
-`quattro-daily uninstall` removes the schedule. Your editions stay where they are.
+`inkwell-daily uninstall` removes the schedule. Your editions stay where they are.
 
 ## Commands
 
 | Command | What it does |
 | --- | --- |
-| `quattro-daily build [--date YYYY-MM-DD] [--prose] [--offline]` | Set an edition (yesterday's by default) |
-| `quattro-daily open [YYYY-MM-DD]` | Read the newest edition, or that day's, in your browser |
-| `quattro-daily index` | Every edition |
-| `quattro-daily status` | `{"latest":…,"unread":…,"web":…}` |
-| `quattro-daily publish [--dry-run]` | Put the newest edition on claude.ai |
-| `quattro-daily web` | The claude.ai link |
-| `quattro-daily config` | Where the settings file is, and what's in it |
+| `inkwell-daily build [--date YYYY-MM-DD] [--prose] [--offline]` | Set an edition (yesterday's by default) |
+| `inkwell-daily open [YYYY-MM-DD]` | Read the newest edition, or that day's, in your browser |
+| `inkwell-daily index` | Every edition |
+| `inkwell-daily status` | `{"latest":…,"unread":…,"web":…}` |
+| `inkwell-daily publish [--dry-run]` | Put the newest edition on claude.ai |
+| `inkwell-daily web` | The claude.ai link |
+| `inkwell-daily config` | Where the settings file is, and what's in it |
 
 ## Settings
 
-`config.json`, in the data folder (`quattro-daily config` prints its path):
+`config.json`, in the data folder (`inkwell-daily config` prints its path):
 
 ```json
 {
@@ -91,7 +91,7 @@ This works as in the Omarchy version. A short background Claude Code session (`c
 
 | | macOS | Windows |
 | --- | --- | --- |
-| Editions, index, settings, web copy | `~/Library/Application Support/QuattroDaily` | `%LOCALAPPDATA%\QuattroDaily` |
+| Editions, index, settings, web copy | `~/Library/Application Support/InkwellDaily` | `%LOCALAPPDATA%\InkwellDaily` |
 | Morning run log | same folder, `morning.log` | Task Scheduler history |
 
 It reads, but never writes: `~/.claude/projects`, `~/.codex/sessions`, the git logs of your repos, and your wallpaper and dark-mode setting.
