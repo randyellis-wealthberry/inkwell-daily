@@ -7,7 +7,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let model = InkwellModel()
     private var statusItem: NSStatusItem?
     private var settingsWindow: NSWindow?
-    private var trendWindow: NSWindow?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -28,9 +27,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         model.onStatusChange = { [weak self] in
             self?.updateStatusItem()
         }
-        model.onTrendChange = { [weak self] in
-            self?.updateTrendWindow()
-        }
         rebuildMenu()
     }
 
@@ -38,7 +34,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         model.refresh()
         model.refreshConfig()
         model.refreshLaunchAtLogin()
-        model.refreshTrend()
         rebuildMenu()
     }
 
@@ -67,21 +62,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             menu.addItem(item)
         }
 
-        if let trend = model.trend {
-            let item = NSMenuItem()
-            let hosting = NSHostingView(rootView: TrendMenuView(trend: trend) { [weak self] in
-                self?.openTrend()
-            })
-            hosting.frame = NSRect(x: 0, y: 0, width: 380, height: 100)
-            item.view = hosting
-            item.isEnabled = true
-            menu.addItem(item)
-        } else if model.trendLoading {
-            let item = NSMenuItem(title: "Reading the usage line…", action: nil, keyEquivalent: "")
-            item.isEnabled = false
-            menu.addItem(item)
-        }
-
         menu.addItem(.separator())
 
         let open = NSMenuItem(title: "Open Today's Paper", action: #selector(openPaper), keyEquivalent: "o")
@@ -102,11 +82,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         index.target = self
         index.isEnabled = model.status.editionCount > 0 && model.cliURL != nil
         menu.addItem(index)
-
-        let trendItem = NSMenuItem(title: "Usage Trend…", action: #selector(openTrend), keyEquivalent: "")
-        trendItem.target = self
-        trendItem.isEnabled = model.trend != nil
-        menu.addItem(trendItem)
 
         menu.addItem(.separator())
 
@@ -274,30 +249,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc private func showAbout() {
         NSApp.orderFrontStandardAboutPanel(nil)
-    }
-
-    @objc private func openTrend() {
-        guard let trend = model.trend else { return }
-        if trendWindow == nil {
-            let window = NSWindow(
-                contentRect: NSRect(x: 0, y: 0, width: 648, height: 540),
-                styleMask: [.titled, .closable, .miniaturizable],
-                backing: .buffered,
-                defer: false
-            )
-            window.title = "Inkwell Daily Usage"
-            window.isReleasedWhenClosed = false
-            window.center()
-            trendWindow = window
-        }
-        trendWindow?.contentView = NSHostingView(rootView: TrendWindowView(trend: trend))
-        NSApp.activate(ignoringOtherApps: true)
-        trendWindow?.makeKeyAndOrderFront(nil)
-    }
-
-    private func updateTrendWindow() {
-        guard let window = trendWindow, window.isVisible, let trend = model.trend else { return }
-        window.contentView = NSHostingView(rootView: TrendWindowView(trend: trend))
     }
 
     @objc private func openHelp() {

@@ -26,8 +26,6 @@ final class InkwellModel {
     private(set) var cliURL: URL?
     private(set) var isBuilding = false
     private(set) var lastError: String?
-    private(set) var trend: InkwellTrend?
-    private(set) var trendLoading = false
 
     var hour = 5
     var notify = true
@@ -37,9 +35,7 @@ final class InkwellModel {
 
     @ObservationIgnored private var cli: InkwellCLI?
     @ObservationIgnored private var refreshTask: Task<Void, Never>?
-    @ObservationIgnored private var lastTrendAt: Date?
     @ObservationIgnored var onStatusChange: (() -> Void)?
-    @ObservationIgnored var onTrendChange: (() -> Void)?
 
     init() {
         let url = Self.resolveCLI()
@@ -50,7 +46,6 @@ final class InkwellModel {
         refreshConfig()
         refreshLaunchAtLogin()
         startRefreshing()
-        refreshTrend(force: true)
         registerAtLoginIfInstalled()
     }
 
@@ -84,25 +79,6 @@ final class InkwellModel {
         launchAtLogin = SMAppService.mainApp.status == .enabled
     }
 
-    func refreshTrend(force: Bool = false) {
-        guard !trendLoading else { return }
-        if !force, let last = lastTrendAt, Date().timeIntervalSince(last) < 60 { return }
-        guard let cli else { return }
-
-        trendLoading = true
-        cli.run(["trend", "--json"]) { result in
-            self.trendLoading = false
-            guard case .success(let output) = result,
-                  let data = output.data(using: .utf8),
-                  let decoded = try? JSONDecoder().decode(InkwellTrend.self, from: data) else {
-                return
-            }
-            self.trend = decoded
-            self.lastTrendAt = Date()
-            self.onTrendChange?()
-        }
-    }
-
     private func startRefreshing() {
         refreshTask = Task { [weak self] in
             while !Task.isCancelled {
@@ -110,13 +86,6 @@ final class InkwellModel {
                 guard let self else { return }
                 self.refresh()
                 self.refreshConfig()
-                if let last = self.lastTrendAt {
-                    if Date().timeIntervalSince(last) > 300 {
-                        self.refreshTrend(force: true)
-                    }
-                } else {
-                    self.refreshTrend(force: true)
-                }
             }
         }
     }
@@ -166,7 +135,6 @@ final class InkwellModel {
                 // lastError is already set by run.
             }
             self.refresh()
-            self.refreshTrend(force: true)
         }
     }
 

@@ -135,13 +135,10 @@ shows the newest edition and headline, opens today's paper, sets yesterday's
 edition on demand, changes the theme, and has Settings and Launch at Login.
 
 If your Mac hides the menu bar automatically, move the pointer to the top of
-the screen to see it. The menu also carries a compact usage line: the last
-fourteen days, a sparkline, tomorrow's forecast, and a blurb. **Usage Trend…**
-opens the full chart, where you can switch between tokens and prompts.
-
-The app is also attached to each release as `InkwellDaily-menubar-macos-arm64.zip`
-or `-x64.zip`, and it requires macOS 14 or later. Homebrew installs the command
-only; use the `.pkg` or the zip for the menu bar app.
+the screen to see it. The app is also attached to each release as
+`InkwellDaily-menubar-macos-arm64.zip` or `-x64.zip`, and it requires macOS 14
+or later. Homebrew installs the command only; use the `.pkg` or the zip for
+the menu bar app.
 
 ## Commands
 
