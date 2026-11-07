@@ -1,0 +1,11 @@
+{
+  "name": "quattro-daily",
+  "version": "1.0.0",
+  "description": "A morning newspaper about yesterday's agent work and commits, set from your own machine. macOS and Windows.",
+  "license": "MIT",
+  "bin": { "quattro-daily": "bin/quattro-daily.js" },
+  "files": ["bin", "lib", "Model.js", "README.md", "LICENSE"],
+  "engines": { "node": ">=20" },
+  "os": ["darwin", "win32", "linux"],
+  "scripts": { "test": "node --test tests/" }
+}

@@ -1,0 +1,182 @@
+const test = require("node:test")
+const assert = require("node:assert/strict")
+const { compose, factsText, prosePrompt } = require("../lib/compose.js")
+const { renderEdition, renderIndex, plainText } = require("../lib/render.js")
+const Model = require("../Model.js")
+
+const at = (key, h, m) => { const d = Model.parseDateKey(key); d.setHours(h, m || 0); return d.getTime() }
+
+function gathering(over) {
+  const key = "2026-10-15"
+  return Object.assign({
+    key: key,
+    home: "/home/a",
+    reader: { name: "Ada" },
+    theme: { theme: "Tokyo Night", wallpaper: "Winding Road", palette: Model.parseColors('background = "#1a1b26"\nforeground = "#a9b1d6"\naccent = "#7aa2f7"\nyellow = "#e0af68"') },
+    wallpaperImage: "",
+    kickoff: [],
+    kickoffWeek: [],
+    elevation: { name: "Casa Milà", architect: "Antoni Gaudí", year: "1912", place: "Barcelona, Spain", style: "Modernisme", note: "No straight walls.", position: 141, total: 189, remaining: 48, extract: "Casa Milà is a building. It has no straight walls.", image: "", imageAlt: "Casa Milà", problem: "" },
+    elevationTomorrow: null,
+    easel: { title: "Portrait of Constance Pipelet", artist: "Jean Baptiste François Désoria", date: "1797", medium: "Oil on canvas", size: "", department: "", accession: "1939.533", image: "" },
+    easelTomorrow: null,
+    munger: { text: "Invert, always invert.", tag: "Thinking", card: 3 },
+    mungerTomorrow: null,
+    sessions: [{
+      id: "s1", agent: "Claude Code", cwd: "/home/a/Work", files: ["/x"], commits: 2, published: 0, installs: 0, outputTokens: 1200, model: "claude-opus-5-5",
+      prompts: [{ at: at(key, 16, 19), key: key, text: "make me a beautiful weather plugin" }, { at: at(key, 17, 2), key: key, text: "add places" }],
+      days: { [key]: 2 }, firstAt: at(key, 16, 19), lastAt: at(key, 17, 2)
+    }],
+    usage: [],
+    desk: [{ id: "atsokolas.isobar", name: "Isobar", tracked: true, dirty: false, commits: [{ at: at(key, 17, 14), key: key, subject: "Isobar: the weather, drawn in your theme" }] }],
+    carrel: { total: 0, lists: {} },
+    weather: { raw: null, place: "", source: "", imperial: true, places: [] },
+    almanac: { since: "2026-09-26", diskFree: 51e9, diskSize: 68e9, bindings: Model.parseKeybindings("SUPER + O   → Pop window out\nSUPER SHIFT + F   → File manager") },
+    looseEnds: [],
+    week: {},
+    index: []
+  }, over || {})
+}
+
+test("a day of your own work leads the paper", () => {
+  const ed = compose(gathering())
+  assert.equal(ed.lead.kind, "desk")
+  assert.equal(ed.lead.headline, "1 commit landed in Isobar")
+  assert.equal(ed.desk, null)
+  assert.equal(ed.title, "Ada's Quattro Daily")
+  assert.match(ed.lead.paragraphs[0], /^At 4:19 pm, in ~\/Work, you asked Claude Code: “make me a beautiful weather plugin”/)
+  assert.equal(ed.week.days.length, 7)
+  assert.equal(ed.week.days[6].count, 2)
+})
+
+test("goals lead a day without your work, and the desk keeps its place", () => {
+  const key = "2026-10-15"
+  const ed = compose(gathering({
+    sessions: [], desk: [],
+    kickoff: [{ at: at(key, 14, 18), key: key, summary: "Paris Saint-Germain 0-2", body: "Manchester City v PSG" }, { at: at(key, 14, 35), key: key, summary: "Paris Saint-Germain 0-3", body: "" }]
+  }))
+  assert.equal(ed.lead.kind, "kickoff")
+  assert.equal(ed.lead.headline, "2 goals on the Kickoff wire")
+  assert.ok(ed.desk && ed.desk.quiet)
+  assert.equal(ed.desk.headline, "No agent work on file")
+})
+
+test("a quiet day lets the building lead, with its own story", () => {
+  const ed = compose(gathering({ sessions: [], desk: [] }))
+  assert.equal(ed.lead.kind, "pick")
+  assert.equal(ed.lead.headline, "Casa Milà")
+  assert.ok(ed.lead.paragraphs.length)
+})
+
+test("Saturday's news becomes the Sunday magazine", () => {
+  const ed = compose(gathering({ key: "2026-10-17" }))
+  assert.equal(ed.weekend, true)
+  assert.equal(ed.title, "Ada's Quattro Sunday")
+  assert.equal(ed.magazine.days.length, 7)
+  assert.equal(ed.magazine.days[4].prompts, 2, "Thursday's prompts appear in the week")
+})
+
+test("back issues, a year ago, the streak and corrections", () => {
+  const index = [{ date: "2026-10-14", headline: "Paimio", minutes: 3 }, { date: "2026-10-13", headline: "Strata", minutes: 3 }, { date: "2025-10-15", headline: "A year ago", minutes: 2 }]
+  const raw = JSON.stringify({ daily: { time: ["2026-10-15"], weather_code: [3], temperature_2m_max: [14], temperature_2m_min: [11], precipitation_sum: [0] }, hourly: { time: [], temperature_2m: [] } })
+  const ed = compose(gathering({ index: index, previous: { forecastTomorrow: { max: 17, min: 11, precip: 0 } }, weather: { raw: raw, place: "Rivertown", source: "Isobar", imperial: true, places: [] } }))
+  assert.equal(ed.issues.prev.date, "2026-10-14")
+  assert.equal(ed.issues.next, null)
+  assert.equal(ed.issues.yearAgo.headline, "A year ago")
+  assert.equal(ed.streak, "Your 4th edition · 3 mornings running")
+  assert.deepEqual(ed.corrections, ["We forecast a high of 63°; it reached 57°."])
+})
+
+test("an Elevation cache twin is owned up to in the corrections", () => {
+  const g = gathering()
+  g.elevation = Object.assign({}, g.elevation, { problem: "Elevation's cache holds the same photo for Paimio Sanatorium and Villa Savoye." })
+  assert.match(compose(g).corrections[0], /Villa Savoye\. This edition uses the photo from Wikimedia instead\.$/)
+})
+
+test("Claude's headlines replace the set ones, the facts stay", () => {
+  const g = gathering()
+  const facts = factsText(compose(g))
+  g.prose = Model.cleanProse({ leadHeadline: "Isobar's weather arrives in your theme" }, facts)
+  const ed = compose(g)
+  assert.equal(ed.lead.headline, "Isobar's weather arrives in your theme")
+  assert.equal(ed.proseUsed, true)
+  assert.match(prosePrompt(ed), /Do not add any fact/)
+})
+
+test("the page escapes what it prints and carries every section", () => {
+  const g = gathering()
+  g.sessions[0].prompts[0].text = "<script>alert(1)</script> & co"
+  const html = renderEdition(compose(g))
+  assert.ok(!html.includes("<script>alert(1)"))
+  assert.ok(html.includes("&lt;script&gt;alert(1)&lt;/script&gt; &amp; co"))
+  for (const s of ['class="front"', 'class="fold"', 'class="ahead"', 'class="back"', "Unscramble yesterday", "@media print", "Reading time"]) assert.ok(html.includes(s), s)
+  assert.ok(!/\bColor\./.test(html))
+  assert.ok(plainText(html).split(/\s+/).length > 200)
+})
+
+test("the masthead escapes the reader's name", () => {
+  const html = renderEdition(compose(gathering({ reader: { name: "<img src=x onerror=alert(1)>" } })))
+  assert.ok(!html.includes("<img src=x"))
+  assert.ok(html.includes("&lt;img src=x onerror=alert(1)&gt;&#39;s Quattro <span>Daily</span>"))
+})
+
+test("without the daily picks, the page leaves out the fold and today's picks", () => {
+  const html = renderEdition(compose(gathering({ elevation: null, easel: null, easelInstalled: false, munger: null, elevationTomorrow: null, easelTomorrow: null, mungerTomorrow: null })))
+  assert.ok(!html.includes("Below the fold"))
+  assert.ok(!html.includes("isn't installed"))
+  assert.ok(!html.includes("Today on the bar"))
+  assert.ok(!html.includes("MUNGER"))
+})
+
+test("the late seal and the theme's own colours", () => {
+  const html = renderEdition(compose(gathering({ late: { at: 1, time: "4:12 pm" } })))
+  assert.ok(html.includes('class="seal"'))
+  assert.ok(html.includes("4:12 pm"))
+  assert.ok(html.includes("--accent: #7aa2f7"))
+})
+
+test("the index lists every edition with a link", () => {
+  const html = renderIndex([{ date: "2026-10-14", headline: "Paimio", minutes: 3, weekend: false, late: true }], null, "Ada")
+  assert.ok(html.includes('href="2026-10-14.html"'))
+  assert.ok(html.includes("Late"))
+})
+
+const PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
+
+test("what the APIs and decks say is printed as text, never as markup", () => {
+  const evil = '"><img src=x onerror=alert(1)><font color=red>'
+  const g = gathering()
+  Object.assign(g.elevation, { name: evil, architect: evil, place: evil, style: evil, extract: evil + ". Two." })
+  Object.assign(g.easel, { title: evil, artist: evil, medium: evil, accession: evil })
+  Object.assign(g.munger, { text: evil, tag: evil })
+  g.theme.wallpaper = evil
+  const html = renderEdition(compose(g))
+  assert.ok(!html.includes("<img src=x"))
+  assert.ok(!html.includes("<font"))
+  assert.ok(html.includes("&lt;img src=x onerror=alert(1)&gt;&lt;font color=red&gt;"))
+})
+
+test("only the builder's own pictures and numbers reach the page", () => {
+  const g = gathering()
+  g.elevation.image = 'https://evil.example/x.jpg" onerror="alert(1)'
+  g.easel.image = "data:image/svg+xml;base64,PHN2Zz48L3N2Zz4="
+  g.wallpaperImage = 'x") ; } body { background: url("https://evil.example/'
+  g.elevation.position = '1"><script>alert(1)</script>'
+  g.munger.card = "<b>9</b>"
+  let html = renderEdition(compose(g))
+  assert.ok(!html.includes("evil.example"))
+  assert.ok(!html.includes("image/svg"))
+  assert.ok(!html.includes("<script>alert(1)"))
+  assert.ok(!html.includes("<b>9</b>"))
+  assert.ok(html.includes("--wall: none"))
+  g.elevation.image = PNG
+  g.wallpaperImage = PNG
+  html = renderEdition(compose(g))
+  assert.ok(html.includes('<img src="' + PNG + '"'))
+  assert.ok(html.includes('--wall: url("' + PNG + '")'))
+})
+
+test("the index prints minutes as a number", () => {
+  const html = renderIndex([{ date: "2026-10-14", headline: "<i>Lakeside</i>", minutes: "<b>3</b>", weekend: false, late: false }], null, "Ada")
+  assert.ok(!html.includes("<b>3</b>") && !html.includes("<i>Lakeside"))
+})
