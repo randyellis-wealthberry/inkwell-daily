@@ -409,7 +409,7 @@ function fontCommand(opt, cfg) {
 function install(opt, cfg) {
   const hour = opt.hour !== undefined ? Model.intSetting(opt.hour, 5, 0, 23) : cfg.hour
   const node = P.stableNode(process.execPath)
-  const script = STANDALONE ? "" : path.resolve(__filename)
+  const script = STANDALONE ? "" : P.stableScript(path.resolve(__filename))
   privately(DATA)
   fs.mkdirSync(DATA, { recursive: true })
   const cfgFile = P.configFile()

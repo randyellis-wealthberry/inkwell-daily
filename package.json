@@ -1,6 +1,6 @@
 {
   "name": "inkwell-daily",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A morning newspaper about yesterday's agent work and commits, set from your own machine. macOS and Windows.",
   "license": "MIT",
   "author": "Randy Ellis",
@@ -22,10 +22,24 @@
     "commits",
     "weather"
   ],
-  "bin": { "inkwell-daily": "bin/inkwell-daily.js" },
-  "files": ["bin", "lib", "Model.js", "README.md", "LICENSE"],
-  "engines": { "node": ">=20" },
-  "os": ["darwin", "win32", "linux"],
+  "bin": {
+    "inkwell-daily": "bin/inkwell-daily.js"
+  },
+  "files": [
+    "bin",
+    "lib",
+    "Model.js",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "os": [
+    "darwin",
+    "win32",
+    "linux"
+  ],
   "scripts": {
     "test": "node --test",
     "bundle": "node scripts/build-standalone.mjs",

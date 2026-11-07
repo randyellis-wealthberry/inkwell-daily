@@ -36,3 +36,14 @@ test("a Homebrew node is scheduled through its stable symlink", () => {
   assert.equal(P.stableNode("/usr/local/bin/node"), "/usr/local/bin/node")
   assert.equal(P.stableNode("C:\\Program Files\\nodejs\\node.exe"), "C:\\Program Files\\nodejs\\node.exe")
 })
+
+test("a Homebrew install is scheduled through its linked command", () => {
+  assert.equal(
+    P.stableScript("/opt/homebrew/Cellar/inkwell-daily/1.0.1/libexec/bin/inkwell-daily.js"),
+    "/opt/homebrew/bin/inkwell-daily"
+  )
+  assert.equal(
+    P.stableScript("/Users/a/.nvm/versions/node/v24.22.0/lib/node_modules/inkwell-daily/bin/inkwell-daily.js"),
+    "/Users/a/.nvm/versions/node/v24.22.0/lib/node_modules/inkwell-daily/bin/inkwell-daily.js"
+  )
+})
