@@ -1,6 +1,6 @@
 {
   "name": "inkwell-daily",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "A morning newspaper about yesterday's agent work and commits, set from your own machine. macOS and Windows.",
   "license": "MIT",
   "author": "Randy Ellis",
@@ -43,6 +43,9 @@
   "scripts": {
     "test": "node --test",
     "bundle": "node scripts/build-standalone.mjs",
+    "menubar": "bash menubar/build.sh",
+    "menubar:open": "bash menubar/build.sh --open",
+    "icon": "bash menubar/tools/make_icon.sh",
     "pkg": "bash scripts/build-pkg.sh",
     "prepublishOnly": "npm test"
   },

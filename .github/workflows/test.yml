@@ -23,6 +23,14 @@ jobs:
       - name: Unit tests
         run: npm test
 
+      - name: Menu bar model tests
+        if: runner.os == 'macOS'
+        run: swift test --package-path menubar
+
+      - name: Build the menu bar app
+        if: runner.os == 'macOS'
+        run: menubar/build.sh
+
       # The real CLI on the real OS: an offline build, then the commands
       # that read it back.
       - name: Build an edition

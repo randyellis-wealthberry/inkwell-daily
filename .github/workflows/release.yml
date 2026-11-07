@@ -108,6 +108,7 @@ jobs:
           path: |
             dist/macos/*.pkg
             dist/macos/*.dmg
+            dist/macos/*.zip
           if-no-files-found: error
 
   release:

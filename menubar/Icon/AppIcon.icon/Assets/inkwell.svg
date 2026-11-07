@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- A low, asymmetric mid-century inkwell: heavy pebble body, offset neck, flat foot. -->
+  <path fill="#F2E6CC" d="
+    M 206 690
+    C 206 586 286 520 396 512
+    L 572 512
+    C 676 512 748 572 770 660
+    C 790 744 762 844 688 896
+    L 344 896
+    C 258 862 206 784 206 690
+    Z"/>
+  <path fill="#F2E6CC" d="
+    M 556 430
+    L 700 430
+    L 720 530
+    L 540 530
+    Z"/>
+  <rect x="184" y="890" width="640" height="54" rx="27" fill="#F2E6CC"/>
+</svg>

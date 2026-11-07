@@ -5,3 +5,7 @@ node_modules/
 dist/
 *.pkg
 *.dmg
+
+# Swift package build output for the menu bar app.
+menubar/.build/
+menubar/.swiftpm/

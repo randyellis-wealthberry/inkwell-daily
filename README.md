@@ -21,6 +21,8 @@ Inkwell Daily is the desktop port of the [Omarchy plugin](https://github.com/wea
 - Node.js 20 or later — only when installing with npm or from this checkout.
   The one-line installer and the Homebrew formula install it for you, and the
   downloadable standalone build needs no Node at all.
+- macOS 14 or later for the menu bar app. The command itself runs on older
+  macOS, Windows and Linux.
 - `git`
 - `curl` (built into macOS, and into Windows 10 1803 and later as `curl.exe`)
 - Optional: ImageMagick (`magick`) for smaller photos. On a Mac, the built-in `sips` is used instead. Without either, the desktop picture goes in at full size if it's under 6 MB.
@@ -124,6 +126,18 @@ inkwell-daily open
 The morning run sets yesterday's edition once, shows a notification and, with `web` on, publishes it. Later runs that day do nothing. To pick another hour, run `inkwell-daily install --hour 7`.
 
 `inkwell-daily uninstall` removes the schedule. Your editions stay where they are.
+
+## Menu bar
+
+The macOS `.pkg` installs a native menu bar app alongside the command. It
+shows the newest edition and headline, opens today's paper, sets yesterday's
+edition on demand, changes the theme, and has Settings and Launch at Login.
+
+If your Mac hides the menu bar automatically, move the pointer to the top of
+the screen to see it. The app is also attached to each release as
+`InkwellDaily-menubar-macos-arm64.zip` or `-x64.zip`, and it requires macOS 14
+or later. Homebrew installs the command only; use the `.pkg` or the zip for
+the menu bar app.
 
 ## Commands
 
@@ -290,16 +304,26 @@ npm test
 ## Building a release
 
 ```bash
+npm run menubar:open  # build and install the menu bar app in /Applications
+npm run menubar       # dist/macos/Inkwell Daily.app
 npm run bundle        # dist/standalone/inkwell-daily, no Node needed at runtime
-npm run pkg           # dist/macos/InkwellDaily-x.y.z.pkg and .dmg
+npm run pkg           # .pkg, .dmg, and InkwellDaily-menubar-<arch>.zip
 ```
 
-`npm run pkg` needs macOS and builds for the machine's CPU. On a machine with
-no Apple Developer ID certificate the package is unsigned; set
+`npm run pkg` needs macOS and builds for the machine's CPU; it builds the
+standalone command and the menu bar app first. On a machine with no Apple
+Developer ID certificate the package is unsigned; set
 `SIGN_IDENTITY="Developer ID Installer: …"` to sign it, then notarize with
-`notarytool` and staple the ticket. The GitHub release workflow builds the
-standalone binaries for macOS (arm64 and x64), Windows and Linux, publishes
-the npm package when `NPM_TOKEN` is set, and attaches the `.pkg`/`.dmg`.
+`notarytool` and staple the ticket. Set `APP_SIGN_IDENTITY="Developer ID
+Application: …"` to sign the app bundle.
+
+The GitHub release workflow builds the standalone binaries for macOS (arm64
+and x64), Windows and Linux, publishes the npm package through trusted
+publishing (OIDC), and attaches the `.pkg`/`.dmg` and the menu bar app zip.
+
+The app icon lives in `menubar/Icon/AppIcon.icon`; edit it in Icon Composer,
+then run `npm run icon` and `menubar/tools/icon_review.sh`. The menu bar mark
+is drawn in `menubar/Sources/InkwellDaily/InkwellGlyph.swift`.
 
 The Homebrew formula is generated and pushed separately; see
 `packaging/homebrew/README.md` and `scripts/update-tap.sh`.

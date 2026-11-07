@@ -27,6 +27,13 @@ as_user "$BIN" install >/dev/null 2>&1 || true
 
 echo "Setting yesterday's edition..."
 as_user "$BIN" build >/dev/null 2>&1 || true
+
+APP="/Applications/Inkwell Daily.app"
+if [ -d "$APP" ]; then
+  echo "Starting the Inkwell Daily menu bar app..."
+  as_user open -a "$APP" >/dev/null 2>&1 || true
+fi
+
 as_user "$BIN" open >/dev/null 2>&1 || true
 
 exit 0

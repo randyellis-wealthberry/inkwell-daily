@@ -15,17 +15,29 @@ set -eu
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 VERSION="$(node -p 'require(process.argv[1]).version' "$ROOT/package.json")"
 BINARY="$ROOT/dist/standalone/inkwell-daily"
+APP="$ROOT/dist/macos/Inkwell Daily.app"
 OUT="$ROOT/dist/macos"
 WORK="$OUT/work"
 PKG="$OUT/InkwellDaily-$VERSION.pkg"
 DMG="$OUT/InkwellDaily-$VERSION.dmg"
+case "$(uname -m)" in
+  arm64)  MENUBAR_ARCH="macos-arm64" ;;
+  x86_64) MENUBAR_ARCH="macos-x64" ;;
+  *)      MENUBAR_ARCH="macos-$(uname -m)" ;;
+esac
+MENUBAR_ZIP="$OUT/InkwellDaily-menubar-$MENUBAR_ARCH.zip"
 
 [ -x "$BINARY" ] || { printf 'Build the standalone binary first: npm run bundle\n' >&2; exit 1; }
 
+"$ROOT/menubar/build.sh"
+[ -d "$APP" ] || { printf 'The menu bar app was not built\n' >&2; exit 1; }
+ditto -c -k --norsrc --noextattr --keepParent "$APP" "$MENUBAR_ZIP"
+
 rm -rf "$WORK"
-mkdir -p "$WORK/root/usr/local/bin" "$WORK/dmg"
+mkdir -p "$WORK/root/usr/local/bin" "$WORK/root/Applications" "$WORK/dmg"
 
 install -m 0755 "$BINARY" "$WORK/root/usr/local/bin/inkwell-daily"
+ditto "$APP" "$WORK/root/Applications/Inkwell Daily.app"
 # Without this, pkgbuild turns extended attributes into `._` payload files.
 xattr -cr "$WORK/root" 2>/dev/null || true
 
@@ -56,4 +68,5 @@ install -m 0644 "$PKG" "$WORK/dmg/Inkwell Daily.pkg"
 hdiutil create -volname "Inkwell Daily" -srcfolder "$WORK/dmg" -ov -format UDZO "$DMG" >/dev/null
 
 printf 'Built %s\n' "$DMG"
+printf 'Built %s\n' "$MENUBAR_ZIP"
 printf 'Install with: sudo installer -pkg "%s" -target /\n' "$PKG"

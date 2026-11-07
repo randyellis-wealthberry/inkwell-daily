@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>CFBundleIdentifier</key><string>com.wealthberrylabs.inkwell-daily.menubar</string>
+<key>CFBundleName</key><string>Inkwell Daily</string>
+<key>CFBundleDisplayName</key><string>Inkwell Daily</string>
+<key>CFBundleExecutable</key><string>InkwellDaily</string>
+<key>CFBundleIconFile</key><string>AppIcon</string>
+<key>CFBundleIconName</key><string>AppIcon</string>
+<key>CFBundlePackageType</key><string>APPL</string>
+<key>CFBundleShortVersionString</key><string>__VERSION__</string>
+<key>CFBundleVersion</key><string>__BUILD__</string>
+<key>LSMinimumSystemVersion</key><string>14.0</string>
+<key>LSApplicationCategoryType</key><string>public.app-category.news</string>
+<key>LSUIElement</key><true/>
+<key>NSHighResolutionCapable</key><true/>
+<key>NSPrincipalClass</key><string>NSApplication</string>
+<key>NSHumanReadableCopyright</key><string>© 2026 Wealthberry Labs</string>
+</dict></plist>
