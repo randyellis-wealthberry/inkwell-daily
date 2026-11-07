@@ -24,7 +24,7 @@ Inkwell Daily is the desktop port of the [Omarchy plugin](https://github.com/wea
 ## Install
 
 ```bash
-git clone https://github.com/wealthberrylabs/inkwell-daily.git
+git clone https://github.com/randyellis-wealthberry/inkwell-daily.git
 cd inkwell-daily
 npm install -g .          # puts `inkwell-daily` on your PATH
 inkwell-daily install     # set the paper every morning at 5
