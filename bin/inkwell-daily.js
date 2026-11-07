@@ -8,6 +8,7 @@
 //   inkwell-daily index                every edition, in your browser
 //   inkwell-daily latest               the newest edition's path
 //   inkwell-daily status               {"latest": …, "unread": …, "web": …}
+//   inkwell-daily theme [id]           the milestone themes you've unlocked
 //   inkwell-daily publish [--date D] [--dry-run]   put an edition on claude.ai
 //   inkwell-daily install [--hour H]   set the paper each morning (launchd / Task Scheduler)
 //   inkwell-daily uninstall            stop the morning run
@@ -32,11 +33,14 @@ const { webCopy, fileChanges } = require(path.join(ROOT, "lib/web.js"))
 const { LINK_MAX, CACHE_JSON_MAX } = require(path.join(ROOT, "lib/fetch.js"))
 const { privately } = require(path.join(ROOT, "lib/private.js"))
 const S = require(path.join(ROOT, "lib/sources.js"))
+const PR = require(path.join(ROOT, "lib/prices.js"))
+const Themes = require(path.join(ROOT, "lib/themes.js"))
 
 const DATA = P.dataDir()
 const ED_DIR = path.join(DATA, "editions")
 const INDEX_FILE = path.join(DATA, "editions.json")
 const READ_FILE = path.join(DATA, "read")
+const READS_FILE = path.join(DATA, "reads.json")
 
 function usage() {
   process.stdout.write(fs.readFileSync(__filename, "utf8").split("\n").slice(1, 17).join("\n").replace(/^\/\/ ?/gm, "") + "\n")
@@ -85,7 +89,17 @@ function gather(key, opt, cfg) {
   const sessions = C.claudeSessions(from, key).concat(C.codexSessions(from, key)).sort((a, b) => a.firstAt - b.firstAt)
   const desk = C.repoDesk(Model.isWeekendEdition(key) ? from : Model.shiftDateKey(key, -2), key, sessions, cfg.repos)
     .filter(p => p.commits.length || p.dirty)
+  const monthStart = key.slice(0, 8) + "01"
+  const usage = C.claudeUsage(monthStart, key).concat(C.codexUsage(monthStart, key), C.opencodeUsage(monthStart, key))
+  const reads = loadReads()
   const theme = C.desktop()
+  const chosen = Themes.resolve(cfg.theme, Model.readTotal(reads.days, key), theme.palette)
+  if (chosen.id !== "auto") {
+    theme.palette = chosen.palette
+    theme.theme = chosen.name
+  }
+  theme.chosen = chosen.id
+  theme.locked = chosen.locked
   return {
     key: key,
     home: P.home(),
@@ -101,6 +115,9 @@ function gather(key, opt, cfg) {
     weather: C.weather(key, net, cfg),
     almanac: C.almanac(),
     looseEnds: C.looseEnds(desk),
+    reads: reads,
+    modelUsage: usage,
+    prices: usage.length ? PR.load(DATA, net) : {},
     week: {}
   }
 }
@@ -274,20 +291,88 @@ async function morning(cfg) {
   if (cfg.web) publish({})
 }
 
+// The ledger of mornings the paper was opened. Older builds kept only the last
+// edition read, so the first run seeds today from that marker's own timestamp.
+function loadReads() {
+  const ledger = Model.parseReads(fs.existsSync(READS_FILE) ? fs.readFileSync(READS_FILE, "utf8") : "")
+  if (!Object.keys(ledger.days).length) {
+    try {
+      const key = fs.readFileSync(READ_FILE, "utf8").trim()
+      const at = Math.round(fs.statSync(READ_FILE).mtimeMs)
+      if (Model.parseDateKey(key)) ledger.days[Model.dateKeyFromDate(new Date(at))] = at
+    } catch (e) {}
+  }
+  return ledger
+}
+
 function status() {
   const index = loadIndex()
   const latest = index[0] || null
   let read = ""
   try { read = fs.readFileSync(READ_FILE, "utf8").trim() } catch (e) {}
+  const ledger = loadReads()
+  const today = Model.dateKeyFromDate(new Date())
   const web = readJson(path.join(DATA, "web", "state.json")) || {}
   process.stdout.write(JSON.stringify({
     latest: latest ? latest.date : "", headline: latest ? latest.headline : "", unread: !!latest && read < latest.date,
-    editions: index.length, web: Model.artifactUrl(web.url) || "", data: DATA
+    editions: index.length, readDays: Object.keys(ledger.days).length, run: Model.readRun(ledger.days, today),
+    checkedToday: !!ledger.days[today], web: Model.artifactUrl(web.url) || "", data: DATA
   }) + "\n")
 }
 
 function markRead(key) {
   try { privately(DATA); fs.mkdirSync(DATA, { recursive: true }); fs.writeFileSync(READ_FILE, key + "\n") } catch (e) {}
+  try {
+    const ledger = loadReads()
+    const now = new Date()
+    const day = Model.dateKeyFromDate(now)
+    const fresh = !ledger.days[day]
+    if (fresh) ledger.days[day] = now.getTime()
+    if (fresh || !fs.existsSync(READS_FILE)) writeAtomic(READS_FILE, JSON.stringify(ledger, null, 2) + "\n")
+  } catch (e) {}
+}
+
+// ---- perks -----------------------------------------------------------------------------
+
+// `theme` with no id lists the milestone themes and where the next one sits.
+// With an id, it sets the paper's theme if the habit has earned it.
+function themeCommand(opt, cfg) {
+  const ledger = loadReads()
+  const today = Model.dateKeyFromDate(new Date())
+  const mornings = Model.readTotal(ledger.days, today)
+  const picked = Themes.resolve(cfg.theme, mornings, null)
+  const want = opt._[0]
+  if (want) {
+    const t = Themes.byId(want)
+    if (!t) {
+      process.stderr.write('No theme "' + want + '". Try: ' + Themes.THEMES.map(x => x.id).join(", ") + "\n")
+      process.exit(2)
+    }
+    if (t.at > mornings) {
+      process.stderr.write(t.name + " unlocks at " + t.at + " mornings; you're at " + mornings + ". Keep opening the paper.\n")
+      process.exit(2)
+    }
+    const file = P.configFile()
+    const saved = readJson(file) || {}
+    privately(DATA)
+    fs.mkdirSync(DATA, { recursive: true })
+    writeAtomic(file, JSON.stringify(Object.assign({}, P.DEFAULTS, saved, { theme: t.id }), null, 2) + "\n")
+    process.stdout.write("Theme set to " + t.name + ". The next edition will use it.\n")
+    return
+  }
+  const p = Themes.perks(mornings, picked.id)
+  const list = [{ id: "auto", name: "Auto", at: 0, unlocked: true, active: picked.id === "auto", remaining: 0 }].concat(p.themes)
+  if (opt.json) {
+    process.stdout.write(JSON.stringify({ theme: cfg.theme, active: picked.id, mornings: mornings, themes: list }, null, 2) + "\n")
+    return
+  }
+  const pad = (s, n) => String(s) + " ".repeat(Math.max(0, n - String(s).length))
+  for (const t of list) {
+    const when = t.at ? t.at + " mornings" : "always"
+    const state = t.active ? "in use" : t.unlocked ? "unlocked" : t.remaining + " to go"
+    process.stdout.write(pad(t.id, 12) + pad(t.name, 16) + pad(when, 13) + state + "\n")
+  }
+  if (p.next) process.stdout.write("\nNext: " + p.next.name + " at " + p.next.at + " mornings (" + p.next.remaining + " to go).\n")
 }
 
 // ---- scheduling ------------------------------------------------------------------------
@@ -367,6 +452,7 @@ async function main() {
     }
     case "latest": { const e = loadIndex()[0]; if (e) process.stdout.write(path.join(ED_DIR, e.date + ".html") + "\n"); break }
     case "status": status(); break
+    case "theme": themeCommand(opt, cfg); break
     case "publish": publish(opt); break
     case "web": { const s = readJson(path.join(DATA, "web", "state.json")) || {}; const u = Model.artifactUrl(s.url); if (u) process.stdout.write(u + "\n"); break }
     case "install": install(opt, cfg); break
