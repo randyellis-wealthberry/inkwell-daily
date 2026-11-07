@@ -12,6 +12,7 @@
 //   inkwell-daily install [--hour H]   set the paper each morning (launchd / Task Scheduler)
 //   inkwell-daily uninstall            stop the morning run
 //   inkwell-daily config               where the settings file is, and what's in it
+//   inkwell-daily sources              the plugin sources that will report (Inkwell Pro and others)
 
 "use strict"
 
@@ -30,6 +31,7 @@ const { renderEdition, renderIndex, plainText } = require(path.join(ROOT, "lib/r
 const { webCopy, fileChanges } = require(path.join(ROOT, "lib/web.js"))
 const { LINK_MAX, CACHE_JSON_MAX } = require(path.join(ROOT, "lib/fetch.js"))
 const { privately } = require(path.join(ROOT, "lib/private.js"))
+const S = require(path.join(ROOT, "lib/sources.js"))
 
 const DATA = P.dataDir()
 const ED_DIR = path.join(DATA, "editions")
@@ -37,7 +39,7 @@ const INDEX_FILE = path.join(DATA, "editions.json")
 const READ_FILE = path.join(DATA, "read")
 
 function usage() {
-  process.stdout.write(fs.readFileSync(__filename, "utf8").split("\n").slice(1, 16).join("\n").replace(/^\/\/ ?/gm, "") + "\n")
+  process.stdout.write(fs.readFileSync(__filename, "utf8").split("\n").slice(1, 17).join("\n").replace(/^\/\/ ?/gm, "") + "\n")
 }
 
 function flags(argv) {
@@ -114,7 +116,7 @@ function askClaude(prompt, cwd) {
   }
 }
 
-function build(opt, cfg) {
+async function build(opt, cfg) {
   const key = opt.date || yesterday()
   if (!Model.parseDateKey(key)) { process.stderr.write("inkwell-daily: bad --date " + key + "\n"); process.exit(2) }
   const outDir = opt.out || DATA
@@ -125,6 +127,8 @@ function build(opt, cfg) {
   const indexFile = path.join(outDir, "editions.json")
   const index = Model.parseIndex(fs.existsSync(indexFile) ? fs.readFileSync(indexFile, "utf8") : "")
   const g = gather(key, opt, cfg)
+  const log = m => process.stderr.write("inkwell-daily: " + m + "\n")
+  g.extras = await S.collectAll(S.loadPlugins(cfg, DATA, log), { key: key, from: Model.shiftDateKey(key, -6), to: key, net: !opt.offline, dataDir: DATA }, cfg)
   g.index = index
   g.previous = readJson(path.join(edDir, Model.shiftDateKey(key, -1) + ".json"))
 
@@ -256,12 +260,12 @@ function publish(opt) {
 
 // Run by the scheduler at the hour, on wake and at logon. It sets yesterday's
 // edition once, then stays quiet until tomorrow.
-function morning(cfg) {
+async function morning(cfg) {
   const key = yesterday()
   const now = new Date()
   if (now.getHours() < cfg.hour) return
   if (loadIndex().some(e => e.date === key)) return
-  const r = build({}, cfg)
+  const r = await build({}, cfg)
   if (!r) return
   if (cfg.notify) {
     const t = P.toastCommand("Your paper is here", r.headline + " · " + Model.readingLine(r.minutes))
@@ -333,14 +337,19 @@ function uninstall() {
 
 // ---- main ------------------------------------------------------------------------------
 
-function main() {
+async function main() {
   const argv = process.argv.slice(2)
   const cmd = argv[0] && !argv[0].startsWith("-") ? argv.shift() : "help"
   const opt = flags(argv)
   const cfg = P.readConfig()
   switch (cmd) {
-    case "build": build(opt, cfg); break
-    case "morning": morning(cfg); break
+    case "build": await build(opt, cfg); break
+    case "morning": await morning(cfg); break
+    case "sources": {
+      const found = S.loadPlugins(cfg, DATA, m => process.stderr.write(m + "\n"))
+      process.stdout.write(found.length ? found.map(s => s.id + "\t" + s.name + "\t(" + s.plugin + ")").join("\n") + "\n" : "No plugin sources installed. The free paper reports agent logs, git and the weather.\n")
+      break
+    }
     case "open": {
       const index = loadIndex()
       const key = opt._[0] || (index[0] && index[0].date)
@@ -367,4 +376,4 @@ function main() {
   }
 }
 
-main()
+main().catch(e => { process.stderr.write(String(e && e.stack || e) + "\n"); process.exit(1) })

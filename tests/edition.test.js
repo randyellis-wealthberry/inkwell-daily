@@ -180,3 +180,16 @@ test("the index prints minutes as a number", () => {
   const html = renderIndex([{ date: "2026-10-14", headline: "<i>Lakeside</i>", minutes: "<b>3</b>", weekend: false, late: false }], null, "Ada")
   assert.ok(!html.includes("<b>3</b>") && !html.includes("<i>Lakeside"))
 })
+
+test("plugin sections are printed escaped, with their meter and classifieds, and counted in the facts", () => {
+  const extras = { sections: [{ source: "Mail", kicker: "The mail desk", headline: "29 threads, 3 waiting on you", deck: "", note: "", items: [{ time: "9:14 am", title: "<script>x</script>", detail: "Re: launch", tag: "reply" }] }],
+    meter: [{ label: "Threads", value: "29" }], classifieds: [{ kind: "WANTED", text: "A reply to Ada.", code: "" }] }
+  const ed = compose(gathering({ extras: extras }))
+  const html = renderEdition(ed)
+  assert.ok(html.includes("29 threads, 3 waiting on you"))
+  assert.ok(html.includes("&lt;script&gt;x&lt;/script&gt;"))
+  assert.ok(!html.includes("<script>x</script>"))
+  assert.ok(html.includes("A reply to Ada."))
+  assert.ok(html.includes("from your agent logs and git, Mail"))
+  assert.match(factsText(ed), /29 threads, 3 waiting on you/)
+})

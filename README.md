@@ -52,6 +52,7 @@ The morning run sets yesterday's edition once, shows a notification and, with `w
 | `inkwell-daily publish [--dry-run]` | Put the newest edition on claude.ai |
 | `inkwell-daily web` | The claude.ai link |
 | `inkwell-daily config` | Where the settings file is, and what's in it |
+| `inkwell-daily sources` | The plugin sources that will report |
 
 ## Settings
 
@@ -86,6 +87,40 @@ Only commits under each repo's own `git config user.email` count as yours.
 ### The paper on the web
 
 This works as in the Omarchy version. A short background Claude Code session (`claude --bg`) gets only Read (inside the web copy's folder), Write (only on `web/link.txt`) and Artifact, in `dontAsk` mode. Before the first publish, run `claude` once in the data folder and accept the trust prompt. On Windows, use the native Claude Code install (`claude.exe`).
+
+## Inkwell Pro
+
+The free paper covers your agent logs, git and the weather. **Inkwell Pro** adds desks for the rest of your day: your mail first, then Slack, Notion and Basecamp. Each one is read through your own claude.ai connectors by a Claude Code session that can only read: it can search and open, and nothing else.
+
+```bash
+npm install -g <the Inkwell Pro package you're sent>
+inkwell-pro activate <your license key>
+inkwell-daily sources      # gmail  Gmail  (inkwell-pro)
+```
+
+Turn a desk off in `config.json` with `"sources": { "gmail": { "enabled": false } }`.
+
+### Writing your own source
+
+Inkwell Pro uses the same plugin interface anyone can. List a package name or an absolute path in `config.json`'s `"plugins"`, and export:
+
+```js
+module.exports = {
+  sources: [{
+    id: "standup",
+    name: "Standup",
+    async collect({ key, from, to, net, config, dataDir }) {
+      return {
+        sections: [{ kicker: "Standup", headline: "3 blockers raised", deck: "", items: [{ time: "9:30 am", title: "Ada", detail: "Waiting on the API key", tag: "Blocked" }] }],
+        meter: [{ label: "Blockers", value: "3" }],
+        classifieds: [{ kind: "WANTED", text: "An API key for Ada." }]
+      }
+    }
+  }]
+}
+```
+
+Everything a source returns is treated as untrusted: it's cut to size, kept to plain strings and escaped on the page. A source that throws becomes a note in its own section, never a failed paper. Its headlines and items are added to the facts that `prose` is checked against.
 
 ## Data
 
