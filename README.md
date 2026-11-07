@@ -76,12 +76,7 @@ inkwell-daily build
 inkwell-daily open
 ```
 
-Requires Node.js 20 or later. If `npm install -g inkwell-daily` returns 404,
-the release hasn't reached npm yet; install the tagged source instead:
-
-```bash
-npm install -g https://github.com/randyellis-wealthberry/inkwell-daily/archive/refs/tags/v1.0.1.tar.gz
-```
+Requires Node.js 20 or later.
 
 ### Download, no Node needed
 
@@ -317,8 +312,9 @@ git push origin v1.0.0
 ```
 
 The release workflow runs the tests, builds and attaches the standalone
-archives and the macOS installers, publishes to npm when the `NPM_TOKEN`
-secret is set, and updates the Homebrew tap when `HOMEBREW_TAP_TOKEN` is set.
+archives and the macOS installers, publishes to npm through trusted
+publishing (OIDC, configured for `release.yml`), and updates the Homebrew tap
+when `HOMEBREW_TAP_TOKEN` is set.
 
 ## License
 
