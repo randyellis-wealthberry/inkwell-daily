@@ -1,0 +1,32 @@
+#!/bin/sh
+# Runs as root after the payload is in place. Sets up the morning run for the
+# person at the console, then sets and opens the first edition. If nobody is
+# logged in (CI, a server, a remote install) it does nothing: the command is
+# installed and the user can run `inkwell-daily install` later.
+
+set -u
+
+BIN=/usr/local/bin/inkwell-daily
+[ -x "$BIN" ] || exit 0
+
+CONSOLE_USER="$(stat -f '%Su' /dev/console 2>/dev/null || true)"
+case "$CONSOLE_USER" in
+  ""|root|loginwindow) exit 0 ;;
+esac
+
+UID_NUM="$(id -u "$CONSOLE_USER" 2>/dev/null || true)"
+HOME_DIR="$(dscl . -read "/Users/$CONSOLE_USER" NFSHomeDirectory 2>/dev/null | awk '{print $2}')"
+[ -n "$UID_NUM" ] && [ -n "$HOME_DIR" ] || exit 0
+
+as_user() {
+  launchctl asuser "$UID_NUM" sudo -u "$CONSOLE_USER" -H "$@"
+}
+
+echo "Setting the Inkwell Daily morning run for $CONSOLE_USER..."
+as_user "$BIN" install >/dev/null 2>&1 || true
+
+echo "Setting yesterday's edition..."
+as_user "$BIN" build >/dev/null 2>&1 || true
+as_user "$BIN" open >/dev/null 2>&1 || true
+
+exit 0

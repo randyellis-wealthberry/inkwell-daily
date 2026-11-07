@@ -1,0 +1,153 @@
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm install --no-audit --no-fund
+      - run: npm test
+
+  npm:
+    needs: test
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    env:
+      NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      - name: Publish when a token is configured
+        run: |
+          if [ -z "$NODE_AUTH_TOKEN" ]; then
+            echo "NPM_TOKEN is not set; skipping the npm publish."
+            exit 0
+          fi
+          npm publish --access public --provenance
+
+  standalone:
+    needs: test
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15
+            platform: macos-arm64
+          - os: macos-15-intel
+            platform: macos-x64
+          - os: ubuntu-latest
+            platform: linux-x64
+          - os: windows-latest
+            platform: windows-x64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm install --no-audit --no-fund
+      - run: npm run bundle
+
+      - name: Package (macOS and Linux)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: tar -czf "inkwell-daily-${{ matrix.platform }}.tar.gz" -C dist/standalone inkwell-daily
+
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: Compress-Archive -Path dist/standalone/inkwell-daily.exe -DestinationPath "inkwell-daily-${{ matrix.platform }}.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.platform }}
+          path: |
+            inkwell-daily-${{ matrix.platform }}.tar.gz
+            inkwell-daily-${{ matrix.platform }}.zip
+          if-no-files-found: ignore
+
+  macos-pkg:
+    needs: test
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15
+            platform: macos-arm64
+          - os: macos-15-intel
+            platform: macos-x64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm install --no-audit --no-fund
+      - run: npm run bundle
+      - run: npm run pkg
+      - name: Rename the installer for its CPU
+        run: |
+          cd dist/macos
+          for f in InkwellDaily-*.pkg InkwellDaily-*.dmg; do
+            mv "$f" "${f%.*}-${{ matrix.platform }}.${f##*.}"
+          done
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.platform }}-installer
+          path: |
+            dist/macos/*.pkg
+            dist/macos/*.dmg
+          if-no-files-found: error
+
+  release:
+    needs: [standalone, macos-pkg]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: artifacts/*
+
+  homebrew:
+    needs: release
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    env:
+      TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Update the tap formula
+        run: |
+          if [ -z "$TOKEN" ]; then
+            echo "HOMEBREW_TAP_TOKEN is not set; skipping the tap update."
+            exit 0
+          fi
+          VERSION="${GITHUB_REF_NAME#v}"
+          git clone "https://x-access-token:${TOKEN}@github.com/randyellis-wealthberry/homebrew-tap.git" tap
+          HOMEBREW_TAP_DIR=tap sh scripts/update-tap.sh "$VERSION"
+          cd tap
+          git config user.name "inkwell-release"
+          git config user.email "actions@github.com"
+          git add Formula/inkwell-daily.rb
+          git commit -m "inkwell-daily ${VERSION}" || true
+          git push

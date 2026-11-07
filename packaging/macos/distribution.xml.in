@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<installer-gui-script minSpecVersion="2">
+  <title>Inkwell Daily</title>
+  <organization>com.wealthberrylabs</organization>
+  <options customize="never" require-scripts="false"/>
+  <welcome file="welcome.html" mime-type="text/html"/>
+  <conclusion file="conclusion.html" mime-type="text/html"/>
+  <choices-outline>
+    <line choice="default">
+      <line choice="com.wealthberrylabs.inkwell-daily"/>
+    </line>
+  </choices-outline>
+  <choice id="default"/>
+  <choice id="com.wealthberrylabs.inkwell-daily" visible="false">
+    <pkg-ref id="com.wealthberrylabs.inkwell-daily"/>
+  </choice>
+  <pkg-ref id="com.wealthberrylabs.inkwell-daily" version="__VERSION__">component.pkg</pkg-ref>
+</installer-gui-script>

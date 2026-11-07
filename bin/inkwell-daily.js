@@ -1,20 +1,7 @@
 #!/usr/bin/env node
-// Inkwell Daily for macOS and Windows: a morning newspaper about yesterday's
-// agent work and commits, set from your own machine.
-//
-//   inkwell-daily build [--date YYYY-MM-DD] [--prose] [--offline] [--print-prompt] [--out DIR]
-//   inkwell-daily morning              set yesterday's edition if it isn't yet, toast, publish
-//   inkwell-daily open [YYYY-MM-DD]    read the newest (or that) edition in your browser
-//   inkwell-daily index                every edition, in your browser
-//   inkwell-daily latest               the newest edition's path
-//   inkwell-daily status               {"latest": …, "unread": …, "web": …}
-//   inkwell-daily theme [id]           the milestone themes you've unlocked
-//   inkwell-daily font [id]            the type pairing for the paper
-//   inkwell-daily publish [--date D] [--dry-run]   put an edition on claude.ai
-//   inkwell-daily install [--hour H]   set the paper each morning (launchd / Task Scheduler)
-//   inkwell-daily uninstall            stop the morning run
-//   inkwell-daily config               where the settings file is, and what's in it
-//   inkwell-daily sources              the plugin sources that will report (Inkwell Pro and others)
+// Inkwell Daily: a morning newspaper about yesterday's agent work and commits.
+// The command list lives in ../lib/usage.js, so the bundled standalone build
+// never has to read its own executable to print help.
 
 "use strict"
 
@@ -24,19 +11,26 @@ const path = require("node:path")
 const crypto = require("node:crypto")
 const { execFileSync } = require("node:child_process")
 
-const ROOT = path.join(__dirname, "..")
-const Model = require(path.join(ROOT, "Model.js"))
-const P = require(path.join(ROOT, "lib/platform.js"))
-const C = require(path.join(ROOT, "lib/collect.js"))
-const { compose, factsText, prosePrompt, clock } = require(path.join(ROOT, "lib/compose.js"))
-const { renderEdition, renderIndex, plainText } = require(path.join(ROOT, "lib/render.js"))
-const { webCopy, fileChanges } = require(path.join(ROOT, "lib/web.js"))
-const { LINK_MAX, CACHE_JSON_MAX } = require(path.join(ROOT, "lib/fetch.js"))
-const { privately } = require(path.join(ROOT, "lib/private.js"))
-const S = require(path.join(ROOT, "lib/sources.js"))
-const PR = require(path.join(ROOT, "lib/prices.js"))
-const Themes = require(path.join(ROOT, "lib/themes.js"))
-const Fonts = require(path.join(ROOT, "lib/fonts.js"))
+const Model = require("../Model.js")
+const P = require("../lib/platform.js")
+const C = require("../lib/collect.js")
+const { compose, factsText, prosePrompt, clock } = require("../lib/compose.js")
+const { renderEdition, renderIndex, plainText } = require("../lib/render.js")
+const { webCopy, fileChanges } = require("../lib/web.js")
+const { LINK_MAX, CACHE_JSON_MAX } = require("../lib/fetch.js")
+const { privately } = require("../lib/private.js")
+const S = require("../lib/sources.js")
+const PR = require("../lib/prices.js")
+const Themes = require("../lib/themes.js")
+const Fonts = require("../lib/fonts.js")
+const { USAGE } = require("../lib/usage.js")
+
+// A Node SEA executable runs this file from inside the binary: there is no
+// script path to give launchd or Task Scheduler, so the scheduler calls the
+// executable directly.
+const STANDALONE = (() => {
+  try { return require("node:sea").isSea() } catch (e) { return false }
+})()
 
 const DATA = P.dataDir()
 const ED_DIR = path.join(DATA, "editions")
@@ -45,9 +39,7 @@ const READ_FILE = path.join(DATA, "read")
 const READS_FILE = path.join(DATA, "reads.json")
 
 function usage() {
-  const lines = fs.readFileSync(__filename, "utf8").split("\n")
-  const end = lines.findIndex((line, i) => i > 1 && !line.startsWith("//"))
-  process.stdout.write(lines.slice(1, end > 1 ? end : lines.length).map(line => line.replace(/^\/\/ ?/, "")).join("\n") + "\n")
+  process.stdout.write(USAGE)
 }
 
 function flags(argv) {
@@ -416,8 +408,8 @@ function fontCommand(opt, cfg) {
 
 function install(opt, cfg) {
   const hour = opt.hour !== undefined ? Model.intSetting(opt.hour, 5, 0, 23) : cfg.hour
-  const node = process.execPath
-  const script = path.resolve(__filename)
+  const node = P.stableNode(process.execPath)
+  const script = STANDALONE ? "" : path.resolve(__filename)
   privately(DATA)
   fs.mkdirSync(DATA, { recursive: true })
   const cfgFile = P.configFile()
@@ -442,7 +434,8 @@ function install(opt, cfg) {
     if (!r.ok) { process.stderr.write("schtasks failed:\n" + r.out + "\n"); process.exit(1) }
     process.stdout.write("The paper will be set each morning at " + hour + ":00 (or at your next sign-in).\nScheduled task: " + P.TASK_NAME + "\n")
   } else {
-    process.stdout.write("On Linux, add this to your crontab (crontab -e):\n0 " + hour + " * * * " + JSON.stringify(node) + " " + JSON.stringify(script) + " morning\n")
+    const cmd = JSON.stringify(node) + " " + (script ? JSON.stringify(script) + " " : "") + "morning"
+    process.stdout.write("On Linux, add this to your crontab (crontab -e):\n0 " + hour + " * * * " + cmd + "\n")
   }
 }
 

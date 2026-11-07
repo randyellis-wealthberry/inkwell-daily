@@ -3,9 +3,37 @@
   "version": "1.0.0",
   "description": "A morning newspaper about yesterday's agent work and commits, set from your own machine. macOS and Windows.",
   "license": "MIT",
+  "author": "Randy Ellis",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/randyellis-wealthberry/inkwell-daily.git"
+  },
+  "homepage": "https://github.com/randyellis-wealthberry/inkwell-daily#readme",
+  "bugs": {
+    "url": "https://github.com/randyellis-wealthberry/inkwell-daily/issues"
+  },
+  "keywords": [
+    "inkwell",
+    "newspaper",
+    "morning",
+    "claude-code",
+    "codex",
+    "agents",
+    "commits",
+    "weather"
+  ],
   "bin": { "inkwell-daily": "bin/inkwell-daily.js" },
   "files": ["bin", "lib", "Model.js", "README.md", "LICENSE"],
   "engines": { "node": ">=20" },
   "os": ["darwin", "win32", "linux"],
-  "scripts": { "test": "node --test" }
+  "scripts": {
+    "test": "node --test",
+    "bundle": "node scripts/build-standalone.mjs",
+    "pkg": "bash scripts/build-pkg.sh",
+    "prepublishOnly": "npm test"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2",
+    "postject": "^1.0.0-alpha.6"
+  }
 }

@@ -1,2 +1,7 @@
 node_modules/
 *.tmp-*
+
+# Everything built locally and shipped from a release.
+dist/
+*.pkg
+*.dmg

@@ -18,7 +18,9 @@ Inkwell Daily is the desktop port of the [Omarchy plugin](https://github.com/wea
 
 ## Requirements
 
-- Node.js 20 or later
+- Node.js 20 or later — only when installing with npm or from this checkout.
+  The one-line installer and the Homebrew formula install it for you, and the
+  downloadable standalone build needs no Node at all.
 - `git`
 - `curl` (built into macOS, and into Windows 10 1803 and later as `curl.exe`)
 - Optional: ImageMagick (`magick`) for smaller photos. On a Mac, the built-in `sips` is used instead. Without either, the desktop picture goes in at full size if it's under 6 MB.
@@ -27,12 +29,89 @@ Inkwell Daily is the desktop port of the [Omarchy plugin](https://github.com/wea
 
 ## Install
 
+Pick the one that matches your machine. Every path ends with the same command
+on your PATH and a morning run registered.
+
+### macOS, one line
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/randyellis-wealthberry/inkwell-daily/main/scripts/install.sh | sh
+```
+
+The script checks for Node.js 20 or later (and installs it with Homebrew if
+it's missing), installs Inkwell Daily, schedules the 5am run, and opens the
+first edition. To choose another hour or skip the browser:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/randyellis-wealthberry/inkwell-daily/main/scripts/install.sh | sh -s -- --hour 7 --no-open
+```
+
+Options: `--hour H`, `--no-open`, `--no-schedule`, `--version V`,
+`--uninstall`.
+
+### Homebrew
+
+```bash
+brew install randyellis-wealthberry/tap/inkwell-daily
+inkwell-daily install        # the morning run, at 5 by default
+inkwell-daily build          # yesterday's edition, now
+inkwell-daily open
+```
+
+Homebrew installs Node for you, so npm is never involved. Upgrades and removal
+go through `brew upgrade` / `brew uninstall`.
+
+### npm
+
+```bash
+npm install -g inkwell-daily
+inkwell-daily install
+inkwell-daily build
+inkwell-daily open
+```
+
+Requires Node.js 20 or later. To install the newest code before an npm
+release:
+
+```bash
+npm install -g https://github.com/randyellis-wealthberry/inkwell-daily/archive/refs/heads/main.tar.gz
+```
+
+### Download, no Node needed
+
+The [Releases](https://github.com/randyellis-wealthberry/inkwell-daily/releases)
+page carries a self-contained macOS build:
+
+- **InkwellDaily-x.y.z-macos-arm64.pkg** (or **-x64.pkg**, and the same as
+  **.dmg**) — double-click, then allow it in System Settings → Privacy &
+  Security if macOS warns that it's from an unidentified developer. It puts
+  `inkwell-daily` in `/usr/local/bin`, sets the morning run for the person
+  logged in, and opens the first edition.
+- **inkwell-daily-macos-arm64.tar.gz** / **-x64.tar.gz** — the same executable
+  without the installer; put it anywhere on your PATH after unpacking.
+
+The downloadable builds are unsigned until the project has an Apple Developer
+ID certificate, so expect that one-time Gatekeeper step.
+
+### Windows
+
+```powershell
+powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/randyellis-wealthberry/inkwell-daily/main/scripts/install.ps1 | iex"
+```
+
+Checks for Node.js 20 (installing the LTS with winget if needed), installs the
+command, schedules the morning run, and sets the first edition. Set
+`$env:INKWELL_HOUR` before running to pick another hour, or
+`$env:INKWELL_NO_OPEN = "1"` to keep the browser closed.
+
+### From this checkout
+
 ```bash
 git clone https://github.com/randyellis-wealthberry/inkwell-daily.git
 cd inkwell-daily
-npm install -g .          # puts `inkwell-daily` on your PATH
-inkwell-daily install     # set the paper every morning at 5
-inkwell-daily build       # set yesterday's edition now
+npm install -g .
+inkwell-daily install
+inkwell-daily build
 inkwell-daily open
 ```
 
@@ -206,6 +285,34 @@ Not covered by CI yet, because the runners have no desktop session or Claude log
 ```bash
 npm test
 ```
+
+## Building a release
+
+```bash
+npm run bundle        # dist/standalone/inkwell-daily, no Node needed at runtime
+npm run pkg           # dist/macos/InkwellDaily-x.y.z.pkg and .dmg
+```
+
+`npm run pkg` needs macOS and builds for the machine's CPU. On a machine with
+no Apple Developer ID certificate the package is unsigned; set
+`SIGN_IDENTITY="Developer ID Installer: …"` to sign it, then notarize with
+`notarytool` and staple the ticket. The GitHub release workflow builds the
+standalone binaries for macOS (arm64 and x64), Windows and Linux, publishes
+the npm package when `NPM_TOKEN` is set, and attaches the `.pkg`/`.dmg`.
+
+The Homebrew formula is generated and pushed separately; see
+`packaging/homebrew/README.md` and `scripts/update-tap.sh`.
+
+To ship a version, tag it and push the tag:
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+The release workflow runs the tests, builds and attaches the standalone
+archives and the macOS installers, publishes to npm when the `NPM_TOKEN`
+secret is set, and updates the Homebrew tap when `HOMEBREW_TAP_TOKEN` is set.
 
 ## License
 
