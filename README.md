@@ -80,7 +80,7 @@ Requires Node.js 20 or later. If `npm install -g inkwell-daily` returns 404,
 the release hasn't reached npm yet; install the tagged source instead:
 
 ```bash
-npm install -g https://github.com/randyellis-wealthberry/inkwell-daily/archive/refs/tags/v1.0.0.tar.gz
+npm install -g https://github.com/randyellis-wealthberry/inkwell-daily/archive/refs/tags/v1.0.1.tar.gz
 ```
 
 ### Download, no Node needed

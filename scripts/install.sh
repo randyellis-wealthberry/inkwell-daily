@@ -45,7 +45,7 @@ Options:
   --hour H       morning hour, 0-23 (default 5)
   --no-open      don't open the first edition when the install finishes
   --no-schedule  install the command but don't set the morning run
-  --version V    install tag vV (default: main)
+  --version V    install tag vV (default: the latest release, else main)
   --uninstall    remove the command and the morning run
   -h, --help     this text
 EOF

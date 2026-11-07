@@ -20,7 +20,9 @@ git clone https://github.com/randyellis-wealthberry/homebrew-tap.git ~/Developer
 
 ## Each release
 
-After the tag `vX.Y.Z` exists (the release workflow creates it):
+After the tag `vX.Y.Z` exists (the release workflow creates it), either let the
+workflow update the tap by setting a `HOMEBREW_TAP_TOKEN` repository secret
+(a token that can push to the tap repository), or run the updater yourself:
 
 ```bash
 HOMEBREW_TAP_DIR=~/Developer/homebrew-tap scripts/update-tap.sh X.Y.Z
