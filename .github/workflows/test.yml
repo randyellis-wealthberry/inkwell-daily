@@ -1,0 +1,61 @@
+name: test
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: ${{ matrix.os }} · node ${{ matrix.node }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest, ubuntu-latest]
+        node: [20, 22]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Unit tests
+        run: npm test
+
+      # The real CLI on the real OS: an offline build, then the commands
+      # that read it back.
+      - name: Build an edition
+        shell: bash
+        run: |
+          git config --global user.email "ci@example.com"
+          git config --global user.name "CI"
+          node bin/inkwell-daily.js build --offline --date 2026-10-14
+          node bin/inkwell-daily.js status
+          node bin/inkwell-daily.js latest
+          node bin/inkwell-daily.js config
+          node bin/inkwell-daily.js publish --dry-run > /dev/null
+          f="$(node bin/inkwell-daily.js latest)"
+          test -s "$f"
+          grep -q "Inkwell Daily" "$f"
+
+      - name: Data folder is where the OS expects it
+        shell: bash
+        run: |
+          case "$RUNNER_OS" in
+            macOS)   test -f "$HOME/Library/Application Support/InkwellDaily/editions.json" ;;
+            Windows) test -f "$LOCALAPPDATA/InkwellDaily/editions.json" ;;
+            Linux)   test -f "$HOME/.local/share/inkwell-daily/editions.json" ;;
+          esac
+
+      - name: Morning schedule installs and uninstalls
+        if: runner.os != 'Linux'
+        shell: bash
+        run: |
+          node bin/inkwell-daily.js install --hour 6
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            plutil -lint "$HOME/Library/LaunchAgents/com.wealthberrylabs.inkwell-daily.plist"
+          else
+            schtasks.exe //Query //TN InkwellDaily
+          fi
+          node bin/inkwell-daily.js uninstall

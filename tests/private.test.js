@@ -5,6 +5,7 @@ const os = require("node:os")
 const path = require("node:path")
 const { execFileSync } = require("node:child_process")
 
+const P = require("../lib/platform.js")
 const BIN = path.join(__dirname, "..", "bin")
 
 function modes(dir, out) {
@@ -17,11 +18,12 @@ function modes(dir, out) {
   return out
 }
 
-test("the paper and its web copy are private under a umask of 022, and old files are tightened", () => {
+// File modes and umask are POSIX; Windows keeps the paper private by profile ACLs.
+test("the paper and its web copy are private under a umask of 022, and old files are tightened", { skip: process.platform === "win32" }, () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), "daily-test-"))
   try {
     // What an older version left behind: readable by everyone.
-    const data = path.join(home, ".local/share/inkwell-daily")
+    const data = P.dataDir(process.platform, {}, home)
     fs.mkdirSync(path.join(data, "editions"), { recursive: true, mode: 0o755 })
     fs.chmodSync(data, 0o755)
     fs.writeFileSync(path.join(data, "editions/2026-10-12.json"), "{}\n", { mode: 0o644 })
