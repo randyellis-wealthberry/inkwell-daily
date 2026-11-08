@@ -21,6 +21,8 @@ const { LINK_MAX, CACHE_JSON_MAX } = require("../lib/fetch.js")
 const { privately } = require("../lib/private.js")
 const S = require("../lib/sources.js")
 const Integrations = require("../lib/integrations.js")
+const Sections = require("../lib/sections.js")
+const Wires = require("../lib/wires.js")
 const PR = require("../lib/prices.js")
 const Themes = require("../lib/themes.js")
 const Fonts = require("../lib/fonts.js")
@@ -75,6 +77,11 @@ function loadIndex() {
 }
 
 function yesterday() { return Model.shiftDateKey(Model.dateKeyFromDate(new Date()), -1) }
+
+// The zone the paper is read in, so the service can print local times.
+function zone() {
+  try { return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC" } catch (e) { return "UTC" }
+}
 
 function openPath(target) {
   const argv = P.openCommand(target)
@@ -209,6 +216,8 @@ async function build(opt, cfg) {
   const g = gather(key, opt, cfg, editionKey)
   // The library is optional: no service, no page, and the paper is unchanged.
   g.integrations = await Integrations.library(cfg, !opt.offline)
+  g.wireState = Wires.mark(DATA, ((g.integrations && g.integrations.integrations) || []).filter(i => i.connected).map(i => i.slug))
+  g.sections = await Sections.library(cfg, { date: key, tz: zone() }, !opt.offline)
   const log = m => process.stderr.write("inkwell-daily: " + m + "\n")
   const sources = S.loadPlugins(cfg, DATA, log)
   g.proInstalled = S.hasPro(sources) || !!(cfg.developer && cfg.developer.pro)

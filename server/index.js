@@ -78,6 +78,20 @@ function sendHtml(res, status, message) {
   res.end(text)
 }
 
+// The library page refreshes itself from a file:// origin, so this one answer
+// is readable cross-origin. It is token-gated and carries no content.
+function corsJson(res, status, body) {
+  const text = JSON.stringify(body)
+  res.writeHead(status, {
+    "content-type": "application/json; charset=utf-8",
+    "content-length": Buffer.byteLength(text),
+    "cache-control": "no-store",
+    "access-control-allow-origin": "*",
+    "x-content-type-options": "nosniff"
+  })
+  res.end(text)
+}
+
 // The absolute base for links the page will use. Fixed in production; derived
 // from the request locally so a file:// page can still reach the service.
 function publicBase(req, env) {
@@ -208,7 +222,29 @@ async function handle(req, res, deps) {
 
   if (path === "/health" && req.method === "GET") return send(res, 200, { ok: true })
 
-  // Public: a card's Connect button, verified by its signed token.
+  // Public: the library page refreshing itself, and a card's Connect button.
+  if (path === "/integrations" && req.method === "GET" && url.searchParams.get("t")) {
+    const claim = read(deps.secret, url.searchParams.get("t"))
+    if (!claim) return corsJson(res, 403, { ok: false, error: "expired" })
+    entry.user = claim.userId
+    entry.outcome = "integrations-state"
+    try {
+      const items = await deps.composio.integrations(claim.userId)
+      const base = publicBase(req, deps.env)
+      const integrations = items.map(i => Object.assign({}, i, {
+        connect: i.connected ? "" : base + "/connect?t=" + mint(deps.secret, claim.userId, i.slug, 30 * 24 * 60 * 60 * 1000)
+      }))
+      return corsJson(res, 200, {
+        ok: true,
+        integrations,
+        total: integrations.length,
+        connected: integrations.filter(i => i.connected).length
+      })
+    } catch (e) {
+      return corsJson(res, 200, { ok: false, error: String(e && e.message || e).slice(0, 200) })
+    }
+  }
+
   if (path === "/connect" && req.method === "GET") {
     const claim = read(deps.secret, url.searchParams.get("t") || "")
     if (!claim) return sendHtml(res, 400, "This connect link has expired. Open the paper and try again.")
@@ -270,11 +306,33 @@ async function handle(req, res, deps) {
           ok: true,
           integrations,
           total: integrations.length,
-          connected: integrations.filter(i => i.connected).length
+          connected: integrations.filter(i => i.connected).length,
+          // The page polls this with its own signed token, so a card can flip
+          // to Enabled the moment the provider finishes, without a rebuild.
+          state: base + "/integrations?t=" + mint(deps.secret, who.userId, "__library__", 30 * 24 * 60 * 60 * 1000)
         })
       } catch (e) {
         // The paper renders without the library rather than failing a build.
         entry.outcome = "integrations-failed"
+        return send(res, 200, { ok: false, error: String(e && e.message || e).slice(0, 300) })
+      }
+    }
+
+    if (path === "/sections") {
+      if (req.method !== "GET") return send(res, 405, { ok: false, error: "method not allowed" })
+      const date = Desks.day(url.searchParams.get("date")) || today()
+      const tz = String(url.searchParams.get("tz") || "UTC").slice(0, 64)
+      try {
+        const sections = await deps.composio.sections(who.userId, {
+          date,
+          until: Desks.shift(date, 1),
+          since: date + "T00:00:00Z",
+          tz
+        })
+        entry.outcome = "sections"
+        return send(res, 200, { ok: true, sections })
+      } catch (e) {
+        entry.outcome = "sections-failed"
         return send(res, 200, { ok: false, error: String(e && e.message || e).slice(0, 300) })
       }
     }

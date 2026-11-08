@@ -56,6 +56,7 @@ curl -s -H "Authorization: Bearer $LICENSE" \
 | `GET /connect?t=` | No license. Verifies a signed token from an integrations card, then redirects to Composio. |
 | `GET /desk/:id` | One desk, shaped. `id` is `gmail`, `slack`, `notion`, `calendar` or `basecamp`. |
 | `GET /integrations` | `{ ok, integrations, total, connected }`. The 25 most popular Composio toolkits, each with `connected`. |
+| `GET /sections` | `{ ok, sections }`. The reader folds, grouped by desk. `?date=YYYY-MM-DD&tz=Area/City`. |
 | `?to=YYYY-MM-DD` | The edition's date. Defaults to today (UTC). |
 | `?from=YYYY-MM-DD` | The start of the desk's window. Notion uses it; the rest fix their own. |
 | `?tz=Area/City` | How times are printed. The plugin sends the reader's zone. |
@@ -96,6 +97,18 @@ Three further limits, in `lib/composio.js`:
 - `tags.disable: ["destructiveHint"]` blocks deleting tools outright.
 
 The sandbox is off: it runs arbitrary code and sits outside Composio's zero-data-retention coverage. A newspaper does not need it. Add tools to a desk by adding the slug to both the enable list and `lib/desks.js`, and check the toolkit page first — slugs are not guessable.
+
+### Section readers
+
+`lib/readers.js` is a second, separate allowlist for the folds that report on connected integrations. One read tool each:
+
+| Section | Toolkit | Tool |
+| --- | --- | --- |
+| The Code Desk | `github` | `GITHUB_LIST_ISSUES_ASSIGNED_TO_THE_AUTHENTICATED_USER` |
+| The Code Desk | `linear` | `LINEAR_GET_CURRENT_USER`, `LINEAR_LIST_LINEAR_ISSUES` |
+| The Shelf | `googledrive` | `GOOGLEDRIVE_LIST_FILES` |
+
+Adding an integration is one entry in that file: the toolkit, its read tool, and a `shape`. The session's tool allowlist is derived from it, so a tool that is not in the registry cannot run.
 
 ### Scopes
 
