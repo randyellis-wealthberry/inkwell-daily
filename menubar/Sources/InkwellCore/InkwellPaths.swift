@@ -20,6 +20,16 @@ public enum InkwellPaths {
         dataDirectory(home: home).appendingPathComponent("config.json")
     }
 
+    /// The headshots Make headlines draws from, and the ratings beside them.
+    public static func portraitsDirectory(home: URL = FileManager.default.homeDirectoryForCurrentUser) -> URL {
+        dataDirectory(home: home).appendingPathComponent("portraits", isDirectory: true)
+    }
+
+    public static func headshotCount(home: URL = FileManager.default.homeDirectoryForCurrentUser) -> Int {
+        let names = (try? FileManager.default.contentsOfDirectory(atPath: portraitsDirectory(home: home).path)) ?? []
+        return names.filter { !$0.hasPrefix(".") && ["jpg", "jpeg", "png", "webp"].contains(($0 as NSString).pathExtension.lowercased()) }.count
+    }
+
     /// Absolute paths a GUI app can use without a login shell's PATH.
     public static let standardCLIPaths = [
         "/opt/homebrew/bin/inkwell-daily",

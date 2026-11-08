@@ -13,6 +13,7 @@ Inkwell Daily is the desktop port of the [Omarchy plugin](https://github.com/wea
 - **The usage line.** A 14-day line of tokens — or prompts when there are no tokens — with a forecast for tomorrow and a plain-language blurb.
 - **Your inkwell habit.** A five-week ledger of the mornings you opened the paper, with the run, the best run, and the month's count. Opening an edition with `inkwell-daily open` marks the morning; the next edition shows it.
 - **The perks.** Milestone themes unlocked by the mornings you've opened the paper: First Light at 3, Sunday Paper at 7, Nocturne at 14, Sepia at 30, Gilt at 60, Century at 100. Themes stay unlocked; Auto follows your Mac's light or dark.
+- **The Pro notice.** Until Inkwell Pro is installed, the paper carries a small Slack desk notice and the **Add Slack to Inkwell** call to action. The button is inactive for now; it will open the Inkwell Daily Pro key desk.
 - **The model desk.** Yesterday's models and the month to date, ranked by tokens, with a price: OpenCode's own cost where it records one, otherwise estimated at published list prices. It reads Claude Code and Codex token counts, and OpenCode's own model, token and cost records. Any model and provider can appear.
 - **The back page.** A jumble made from the day's names, an almanac (theme, wallpaper, free disk), and classifieds made of real loose ends: uncommitted changes, an expired `gh` sign-in.
 - **Back issues, the Sunday magazine, corrections, the late-edition seal, the reading time and your streak**, all as in the original.
@@ -249,6 +250,8 @@ inkwell-daily sources      # gmail  Gmail  (inkwell-pro)
 ```
 
 Turn a desk off in `config.json` with `"sources": { "gmail": { "enabled": false } }`.
+
+Until Pro is installed, the free paper prints a Pro notice in its place: a pitch for the Slack desk with an inactive **Add Slack to Inkwell** button. The button carries the `data-paywall="inkwell-daily-pro"` marker for the key desk that will follow.
 
 ### Writing your own source
 

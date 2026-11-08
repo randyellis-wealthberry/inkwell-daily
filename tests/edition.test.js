@@ -221,7 +221,10 @@ test("only the builder's own pictures and numbers reach the page", () => {
   g.munger.card = "<b>9</b>"
   let html = renderEdition(compose(g))
   assert.ok(!html.includes("evil.example"))
-  assert.ok(!html.includes("image/svg"))
+  // The page's own grain and wood are SVG in the stylesheet; a picture
+  // handed in from outside never is.
+  assert.ok(!html.includes("PHN2Zz48L3N2Zz4="), "the outside SVG is dropped")
+  assert.ok(!/<img[^>]+image\/svg/.test(html))
   assert.ok(!html.includes("<script>alert(1)"))
   assert.ok(!html.includes("<b>9</b>"))
   assert.ok(html.includes("--wall: none"))
@@ -237,6 +240,23 @@ test("the index prints minutes as a number", () => {
   assert.ok(!html.includes("<b>3</b>") && !html.includes("<i>Lakeside"))
 })
 
+test("a free paper prints the Pro null state and its inactive Slack CTA", () => {
+  const ed = compose(gathering())
+  assert.equal(ed.pro.installed, false)
+  assert.equal(ed.pro.cta, "Add Slack to Inkwell")
+  const html = renderEdition(ed)
+  assert.ok(html.includes('class="pro"'))
+  assert.ok(html.includes("Your team&#39;s Slack, set in type"))
+  assert.match(html, /<button[^>]*\bdisabled\b[^>]*>Add Slack to Inkwell<\/button>/)
+  assert.ok(html.includes('data-paywall="inkwell-daily-pro"'))
+})
+
+test("an installed Inkwell Pro takes the notice's place", () => {
+  const html = renderEdition(compose(gathering({ proInstalled: true })))
+  assert.ok(!html.includes('class="pro"'))
+  assert.ok(!html.includes("Add Slack to Inkwell"))
+})
+
 test("plugin sections are printed escaped, with their meter and classifieds, and counted in the facts", () => {
   const extras = { sections: [{ source: "Mail", kicker: "The mail desk", headline: "29 threads, 3 waiting on you", deck: "", note: "", items: [{ time: "9:14 am", title: "<script>x</script>", detail: "Re: launch", tag: "reply" }] }],
     meter: [{ label: "Threads", value: "29" }], classifieds: [{ kind: "WANTED", text: "A reply to Ada.", code: "" }] }
@@ -248,4 +268,74 @@ test("plugin sections are printed escaped, with their meter and classifieds, and
   assert.ok(html.includes("A reply to Ada."))
   assert.ok(html.includes("from your agent logs and git, Mail"))
   assert.match(factsText(ed), /29 threads, 3 waiting on you/)
+})
+
+test("Pro's portrait sits under the lead with good and bad buttons", () => {
+  const PIXEL = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
+  const portrait = { image: "data:image/png;base64," + PIXEL, filtered: false, mood: "quiet", caption: "Pictured: <the developer>.", provider: "halftone", photo: "q.png", date: "2026-10-15" }
+  const html = renderEdition(compose(gathering({ portrait: portrait })))
+  assert.match(html, /<figure class="portrait screen" data-date="2026-10-15" data-provider="halftone">/)
+  assert.match(html, /data-verdict="good"[^>]*aria-label="Good picture"/)
+  assert.match(html, /data-verdict="bad"[^>]*aria-label="Bad picture"/)
+  assert.match(html, /Pictured: &lt;the developer&gt;\./)
+  assert.ok(!/class="portrait/.test(renderEdition(compose(gathering()))), "no photo, no figure")
+})
+
+test("the day's picture carries its quote in the paper's own type", () => {
+  const PIXEL = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
+  const pic = { image: "data:image/png;base64," + PIXEL, scene: "a lighthouse", quote: "Begin, be <bold>.", author: "Horace", provider: "recraft", drawnBy: "Recraft", date: "2026-10-15" }
+  const html = renderEdition(compose(gathering({ portrait: pic })))
+  assert.match(html, /<figure class="portrait inspiration" data-date="2026-10-15" data-provider="recraft">/)
+  assert.match(html, /<blockquote class="overquote"><p>Begin, be &lt;bold&gt;\.<\/p><cite>Horace<\/cite><\/blockquote>/)
+  assert.match(html, /Photograph made by Recraft: a lighthouse\./)
+  assert.match(html, /data-verdict="good"/)
+})
+
+test("the Sunday magazine says the week in a sentence and lists only busy days", () => {
+  const days = ["Sun 1 Nov", "Mon 2 Nov", "Tue 3 Nov", "Wed 4 Nov", "Thu 5 Nov", "Fri 6 Nov", "Sat 7 Nov"].map(day => ({ day: day, prompts: 0, commits: [], quote: "" }))
+  days[6].prompts = 2
+  const ed = compose(gathering())
+  ed.magazine = { days: days, goals: [] }
+  const html = renderEdition(ed)
+  const mag = html.slice(html.indexOf('<section class="magazine">'), html.indexOf("</section>", html.indexOf('<section class="magazine">')))
+  assert.match(mag, /2 prompts, all on Sat\. Nothing shipped\./)
+  assert.ok(!/<table/.test(mag), "no table of zeros")
+  assert.equal((mag.match(/<li>/g) || []).length, 1, "only Saturday is listed")
+  assert.ok(!/No goals on the wire/.test(mag) && !/The week's lines/.test(mag), "empty corners stay out")
+})
+
+test("the Pace box sits in the sidebar and stays quiet on a healthy day", () => {
+  const ed = compose(gathering())
+  ed.pace = { verdict: "Good pace: 2 focus blocks, nothing past 90 minutes.", rows: [{ id: "late", label: "Last prompt", value: "9:00pm", flag: false, note: "" }], healthy: true }
+  const html = renderEdition(ed)
+  assert.match(html, /<section class="pace" aria-labelledby="pace-h"><p class="kicker">Pace<\/p><h3 id="pace-h">Good pace: 2 focus blocks/)
+  assert.ok(!/class="pace-row/.test(html), "nothing but the verdict")
+  ed.pace = { verdict: "One sign to ease off.", rows: [{ id: "stretch", label: "Longest stretch", value: "3h", flag: true, note: "Step away sooner." }] }
+  assert.match(renderEdition(ed), /<div class="pace-row flag"><span>Longest stretch<\/span><b>3h<\/b><p>Step away sooner\.<\/p><\/div>/)
+})
+
+test("a set page takes a new theme and font in place, keeping its wallpaper", () => {
+  const { restyle, tokens } = require("../lib/render.js")
+  const Fonts = require("../lib/fonts.js")
+  const PIXEL = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
+  const html = renderEdition(compose(gathering({ wallpaperImage: "data:image/png;base64," + PIXEL })))
+  const sepia = Model.parseColors('background = "#f4ecd8"\nforeground = "#5b4636"\naccent = "#a0522d"')
+  const out = restyle(html, sepia, "broadsheet")
+  assert.ok(out.includes("--paper: " + tokens(sepia).paper + ";"), "the new colours")
+  assert.ok(out.includes(Fonts.get("broadsheet").url.replace(/&/g, "&amp;")), "the new font link")
+  assert.equal(out.split(PIXEL).length, html.split(PIXEL).length, "the wallpaper stays")
+  assert.equal(out.length - out.indexOf("</head>"), html.length - html.indexOf("</head>"), "the body is untouched")
+  assert.equal(restyle("<html>no tokens</html>", sepia, "broadsheet"), "")
+})
+
+test("the paper lies on a table by default, and can go flat", () => {
+  const { restyle, styleTokens } = require("../lib/render.js")
+  const table = renderEdition(compose(gathering()))
+  assert.match(table, /<html lang="en" data-style="table">/, "the table is the default")
+  const flat = renderEdition(compose(gathering({ paperStyle: "flat" })))
+  assert.match(flat, /<html lang="en" data-style="flat">/)
+  assert.match(renderEdition(compose(gathering({ paperStyle: "glossy" }))), /data-style="table"/, "an unknown style gets the default")
+  assert.match(restyle(flat, null, "inkwell", "table"), /<html lang="en" data-style="table">/)
+  assert.match(restyle(table, null, "inkwell", "flat"), /<html lang="en" data-style="flat">/)
+  assert.equal(styleTokens(null, "inkwell", "table").look, "table")
 })

@@ -98,3 +98,14 @@ func explicitCommandWins() throws {
     let found = InkwellPaths.locateCLI(home: home, environment: ["INKWELL_CLI": command.path])
     #expect(found?.resolvingSymlinksInPath().path == command.resolvingSymlinksInPath().path)
 }
+
+@Test("A portrait link carries only an exact verdict and date")
+func portraitRatingLinks() {
+    let good = PortraitRating(url: URL(string: "inkwell-daily://portrait?verdict=good&date=2026-11-06")!)
+    #expect(good?.arguments == ["portrait", "good", "2026-11-06"])
+    #expect(PortraitRating(url: URL(string: "inkwell-daily://portrait?verdict=bad&date=2026-11-06")!)?.verdict == "bad")
+    #expect(PortraitRating(url: URL(string: "inkwell-daily://portrait?verdict=test&date=2026-11-06")!) == nil)
+    #expect(PortraitRating(url: URL(string: "inkwell-daily://portrait?verdict=good&date=--help")!) == nil)
+    #expect(PortraitRating(url: URL(string: "inkwell-daily://other?verdict=good&date=2026-11-06")!) == nil)
+    #expect(PortraitRating(url: URL(string: "https://portrait?verdict=good&date=2026-11-06")!) == nil)
+}
