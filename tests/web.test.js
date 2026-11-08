@@ -19,6 +19,11 @@ test("links to back issues stay on the machine", () => {
   assert.equal(c.html, "<p>a</p><p>b</p>")
 })
 
+test("plugin desks stay on the machine", () => {
+  const c = webCopy('<p>a</p><div class="fold-head"><h2>From your other desks</h2></div><section class="desk extras"><article><h2>3 emails</h2><p>From Ada</p></article></section><p>b</p>')
+  assert.equal(c.html, "<p>a</p><p>b</p>")
+})
+
 test("yesterday's photos are removed from the artifact", () => {
   assert.deepEqual(fileChanges(["img/aaaaaaaaaaaa.jpg", "img/bbbbbbbbbbbb.jpg"], ["img/bbbbbbbbbbbb.jpg", "img/cccccccccccc.jpg"]), { keep: ["img/bbbbbbbbbbbb.jpg", "img/cccccccccccc.jpg"], remove: ["img/aaaaaaaaaaaa.jpg"] })
   assert.deepEqual(fileChanges(undefined, ["img/cccccccccccc.jpg"]).remove, [])

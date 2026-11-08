@@ -109,3 +109,11 @@ func portraitRatingLinks() {
     #expect(PortraitRating(url: URL(string: "inkwell-daily://other?verdict=good&date=2026-11-06")!) == nil)
     #expect(PortraitRating(url: URL(string: "https://portrait?verdict=good&date=2026-11-06")!) == nil)
 }
+
+@Test("A share link carries only a real date")
+func shareLinks() {
+    #expect(ShareRequest(url: URL(string: "inkwell-daily://share?date=2026-11-06")!)?.date == "2026-11-06")
+    #expect(ShareRequest(url: URL(string: "inkwell-daily://share?date=../../etc")!) == nil)
+    #expect(ShareRequest(url: URL(string: "inkwell-daily://portrait?date=2026-11-06")!) == nil)
+    #expect(PortraitRating(url: URL(string: "inkwell-daily://share?date=2026-11-06")!) == nil)
+}

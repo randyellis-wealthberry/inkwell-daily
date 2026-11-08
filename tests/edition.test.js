@@ -339,3 +339,24 @@ test("the paper lies on a table by default, and can go flat", () => {
   assert.match(restyle(table, null, "inkwell", "flat"), /<html lang="en" data-style="flat">/)
   assert.equal(styleTokens(null, "inkwell", "table").look, "table")
 })
+
+test("the share card carries counts and the headline, never prompts, commits or desks", () => {
+  const { renderShareCard } = require("../lib/render.js")
+  const g = gathering()
+  const ed = compose(g)
+  ed.extras = { sections: [{ source: "gmail", kicker: "Gmail", headline: "Mail from Ada", deck: "", items: [{ title: "Ada", detail: "secret contract" }] }] }
+  const card = renderShareCard(ed)
+  assert.ok(card.includes(Model.longDate(g.key)) || card.includes(ed.longDate))
+  assert.ok(card.includes("<h1>" + renderEdition(ed).match(/<h1>([^<]*)<\/h1>/)[1] + "</h1>"), "the day's headline")
+  for (const s of g.sessions) for (const p of s.prompts) assert.ok(!card.includes(p.text.slice(0, 30)), "no prompt text")
+  for (const d of g.desk || []) for (const c of d.commits) assert.ok(!card.includes(c.subject), "no commit subjects")
+  assert.ok(!/secret contract|Mail from Ada/.test(card), "no plugin desks")
+  assert.ok(!/inkwell-daily:\/\/share/.test(card), "no share button on the card itself")
+})
+
+test("the share button links to the app and stays off the web copy", () => {
+  const { webCopy } = require("../lib/web.js")
+  const html = renderEdition(compose(gathering()))
+  assert.match(html, /<a class="share" href="inkwell-daily:\/\/share\?date=2026-10-15"/)
+  assert.ok(!/class="share"/.test(webCopy(html).html.replace(/\.share[^{]*\{[^}]*\}/g, "")))
+})
