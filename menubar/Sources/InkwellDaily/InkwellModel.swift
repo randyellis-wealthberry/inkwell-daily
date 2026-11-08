@@ -10,6 +10,7 @@ struct InkwellTheme: Identifiable, Sendable, Hashable {
     let name: String
 
     static let all: [InkwellTheme] = [
+        .init(id: "milestone", name: "Auto-advance"),
         .init(id: "auto", name: "Auto"),
         .init(id: "firstlight", name: "First Light"),
         .init(id: "sunday", name: "Sunday Paper"),
@@ -18,6 +19,13 @@ struct InkwellTheme: Identifiable, Sendable, Hashable {
         .init(id: "gilt", name: "Gilt"),
         .init(id: "century", name: "Century"),
     ]
+}
+
+struct DeskSettings: Sendable, Equatable {
+    var data = "composio"
+    var model = "inkwell"
+    var proxyUrl = "http://127.0.0.1:8787"
+    var license = ""
 }
 
 /// The paper's looks: `inkwell-daily style`.
@@ -57,15 +65,18 @@ final class InkwellModel {
 
     var hour = 5
     var notify = true
-    var theme = "auto"
+    var theme = "milestone"
     var font = "inkwell"
     var isApplying = false
     /// What the Paper window is previewing; it equals theme and font until
     /// you pick something there, and goes back to them on Apply or Revert.
     var look = "table"
-    var draftTheme = "auto"
+    var draftTheme = "milestone"
     var draftFont = "inkwell"
     var draftLook = "table"
+    var desk = DeskSettings()
+    var hosted = HostedDeskStatus(connected: false, status: "unknown")
+    var isConnecting = false
     var hasDraft: Bool { draftTheme != theme || draftFont != font || draftLook != look }
     /// Mornings still to go, by theme id; a theme missing here is unlocked.
     var themeLocks: [String: Int] = [:]
@@ -79,12 +90,14 @@ final class InkwellModel {
     @ObservationIgnored private var cli: InkwellCLI?
     @ObservationIgnored private var refreshTask: Task<Void, Never>?
     @ObservationIgnored var onStatusChange: (() -> Void)?
+    @ObservationIgnored var onDeskAction: ((DeskRequest?) -> Void)?
     @ObservationIgnored private var hasDraftInFlight = false
     @ObservationIgnored private lazy var paper: PaperWindow = {
         let window = PaperWindow(bar: PaperBar(model: self))
         window.onRate = { [weak self] rating in self?.ratePortrait(rating) }
         window.onClose = { [weak self] in self?.paperClosed() }
         window.onShare = { [weak self] request in self?.share(request) }
+        window.onDesk = { [weak self] request in self?.onDeskAction?(request) }
         return window
     }()
 
@@ -131,6 +144,100 @@ final class InkwellModel {
         if !hasDraftInFlight { draftTheme = theme; draftFont = font; draftLook = look }
         headlines = Headlines(config["headlines"] as? [String: Any] ?? [:])
         hasServiceKey = !headlines.service.isEmpty && Keychain.has(headlines.service)
+        let sources = config["sources"] as? [String: Any] ?? [:]
+        let gmail = sources["gmail"] as? [String: Any] ?? [:]
+        desk = DeskSettings(
+            data: (gmail["data"] as? String) ?? "composio",
+            model: (gmail["model"] as? String) ?? "inkwell",
+            proxyUrl: (gmail["proxyUrl"] as? String) ?? "http://127.0.0.1:8787",
+            license: currentLicense(gmail: gmail)
+        )
+    }
+
+    /// The license belongs in pro.json. Older builds kept it in config.json,
+    /// which `inkwell-daily config` prints, so move it once and scrub it there.
+    private func currentLicense(gmail: [String: Any]) -> String {
+        let file = InkwellPaths.proFile()
+        let saved = ProStore.license(file)
+        if !saved.isEmpty { return saved }
+        guard let old = gmail["license"] as? String, !old.isEmpty else { return "" }
+        do {
+            try ProStore.setLicense(old, at: file)
+            scrubLicenseFromConfig()
+        } catch {
+            // Keep the old copy rather than lose the license to a failed write.
+        }
+        return old
+    }
+
+    private func scrubLicenseFromConfig() {
+        var sources = ConfigStore.read(InkwellPaths.configFile())["sources"] as? [String: Any] ?? [:]
+        guard var gmail = sources["gmail"] as? [String: Any], gmail["license"] != nil else { return }
+        gmail.removeValue(forKey: "license")
+        sources["gmail"] = gmail
+        try? ConfigStore.set("sources", sources, at: InkwellPaths.configFile())
+    }
+
+    func setDesk(_ value: DeskSettings) {
+        desk = value
+        do {
+            var sources = ConfigStore.read(InkwellPaths.configFile())["sources"] as? [String: Any] ?? [:]
+            var gmail = sources["gmail"] as? [String: Any] ?? [:]
+            gmail["data"] = value.data
+            gmail["model"] = value.model
+            gmail["proxyUrl"] = value.proxyUrl
+            gmail.removeValue(forKey: "license")
+            sources["gmail"] = gmail
+            try ConfigStore.set("sources", sources, at: InkwellPaths.configFile())
+            try ProStore.setLicense(value.license, at: InkwellPaths.proFile())
+        } catch {
+            lastError = error.localizedDescription
+            refreshConfig()
+        }
+    }
+
+    private func hostedClient() -> HostedDeskClient? {
+        guard let base = URL(string: desk.proxyUrl), !desk.license.isEmpty,
+              HostedDeskClient.isAllowed(base) else { return nil }
+        return HostedDeskClient(base: base, license: desk.license)
+    }
+
+    func refreshHosted() {
+        guard let client = hostedClient() else {
+            let why = (desk.license.isEmpty || desk.proxyUrl.isEmpty)
+                ? nil
+                : "The proxy must use https, or http to this machine."
+            hosted = HostedDeskStatus(connected: false, status: "missing", error: why)
+            return
+        }
+        Task {
+            let status = await client.status()
+            self.hosted = status
+        }
+    }
+
+    func connectHosted() {
+        guard let client = hostedClient() else {
+            hosted = HostedDeskStatus(connected: false, status: "error", error: "Set the hosted proxy and license first.")
+            return
+        }
+        guard !isConnecting else { return }
+        isConnecting = true
+        Task {
+            do {
+                let url = try await client.connect()
+                NSWorkspace.shared.open(url)
+                for _ in 0..<60 {
+                    try? await Task.sleep(for: .seconds(2))
+                    let status = await client.status()
+                    self.hosted = status
+                    if status.connected { break }
+                }
+            } catch {
+                self.hosted = HostedDeskStatus(connected: false, status: "error", error: error.localizedDescription)
+            }
+            self.isConnecting = false
+        }
     }
 
     func refreshLaunchAtLogin() {

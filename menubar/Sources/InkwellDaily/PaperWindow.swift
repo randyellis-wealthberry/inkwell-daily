@@ -15,6 +15,7 @@ final class PaperWindow: NSObject, WKNavigationDelegate, NSWindowDelegate {
     var onRate: ((PortraitRating) -> Void)?
     var onClose: (() -> Void)?
     var onShare: ((ShareRequest) -> Void)?
+    var onDesk: ((DeskRequest?) -> Void)?
 
     init(bar: PaperBar) {
         let config = WKWebViewConfiguration()
@@ -96,6 +97,8 @@ final class PaperWindow: NSObject, WKNavigationDelegate, NSWindowDelegate {
             // The rating buttons; the same strict check as the URL scheme.
             if let rating = PortraitRating(url: url) { onRate?(rating) }
             if let request = ShareRequest(url: url) { onShare?(request) }
+            if let request = DeskRequest(url: url) { onDesk?(request) }
+            else if url.host == "desks" { onDesk?(nil) }
             decisionHandler(.cancel)
         case "file":
             // Only the editions folder; anything else goes nowhere.

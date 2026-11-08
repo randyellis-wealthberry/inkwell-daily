@@ -15,11 +15,12 @@ const Model = require("../Model.js")
 const P = require("../lib/platform.js")
 const C = require("../lib/collect.js")
 const { compose, factsText, prosePrompt, clock } = require("../lib/compose.js")
-const { STYLES, renderEdition, renderIndex, renderShareCard, restyle, styleTokens, plainText } = require("../lib/render.js")
+const { STYLES, renderEdition, renderIndex, renderIntegrations, renderShareCard, restyle, styleTokens, plainText } = require("../lib/render.js")
 const { webCopy, fileChanges } = require("../lib/web.js")
 const { LINK_MAX, CACHE_JSON_MAX } = require("../lib/fetch.js")
 const { privately } = require("../lib/private.js")
 const S = require("../lib/sources.js")
+const Integrations = require("../lib/integrations.js")
 const PR = require("../lib/prices.js")
 const Themes = require("../lib/themes.js")
 const Fonts = require("../lib/fonts.js")
@@ -82,8 +83,11 @@ function openPath(target) {
 
 // ---- build ------------------------------------------------------------------------
 
-function gather(key, opt, cfg) {
+function gather(key, opt, cfg, editionKey) {
   const net = !opt.offline
+  // `key` is the day the paper reports on; `editionKey` is the morning it is
+  // read. They differ by one, and only the read ledger cares about the edition.
+  const edition = editionKey || key
   const from = Model.shiftDateKey(key, -6)
   const sessions = C.claudeSessions(from, key).concat(C.codexSessions(from, key)).sort((a, b) => a.firstAt - b.firstAt)
   const desk = C.repoDesk(Model.isWeekendEdition(key) ? from : Model.shiftDateKey(key, -2), key, sessions, cfg.repos)
@@ -95,7 +99,7 @@ function gather(key, opt, cfg) {
   const trendUsage = C.claudeUsage(trendFrom, key).concat(C.codexUsage(trendFrom, key), C.opencodeUsage(trendFrom, key))
   const reads = loadReads()
   const theme = C.desktop()
-  const chosen = Themes.resolve(cfg.theme, unlockMornings(Model.readTotal(reads.days, key), cfg), theme.palette)
+  const chosen = Themes.resolve(cfg.theme, unlockMornings(Model.readTotal(reads.days, edition), cfg), theme.palette)
   if (chosen.id !== "auto") {
     theme.palette = chosen.palette
     theme.theme = chosen.name
@@ -104,6 +108,7 @@ function gather(key, opt, cfg) {
   theme.locked = chosen.locked
   return {
     key: key,
+    editionKey: edition,
     home: P.home(),
     reader: C.reader(),
     theme: theme,
@@ -188,8 +193,12 @@ async function portraitCommand(opt, cfg) {
 }
 
 async function build(opt, cfg) {
-  const key = opt.date || yesterday()
-  if (!Model.parseDateKey(key)) { process.stderr.write("inkwell-daily: bad --date " + key + "\n"); process.exit(2) }
+  // The paper is dated the morning it is read. What it reports is the day
+  // before, so every content window stays on `key` and only the cover, the
+  // file name and the index use `editionKey`.
+  const editionKey = opt.date || Model.dateKeyFromDate(new Date())
+  if (!Model.parseDateKey(editionKey)) { process.stderr.write("inkwell-daily: bad --date " + editionKey + "\n"); process.exit(2) }
+  const key = Model.shiftDateKey(editionKey, -1)
   const outDir = opt.out || DATA
   const edDir = path.join(outDir, "editions")
   privately(outDir)
@@ -197,13 +206,15 @@ async function build(opt, cfg) {
 
   const indexFile = path.join(outDir, "editions.json")
   const index = Model.parseIndex(fs.existsSync(indexFile) ? fs.readFileSync(indexFile, "utf8") : "")
-  const g = gather(key, opt, cfg)
+  const g = gather(key, opt, cfg, editionKey)
+  // The library is optional: no service, no page, and the paper is unchanged.
+  g.integrations = await Integrations.library(cfg, !opt.offline)
   const log = m => process.stderr.write("inkwell-daily: " + m + "\n")
   const sources = S.loadPlugins(cfg, DATA, log)
   g.proInstalled = S.hasPro(sources) || !!(cfg.developer && cfg.developer.pro)
   g.extras = await S.collectAll(sources, { key: key, from: Model.shiftDateKey(key, -6), to: key, net: !opt.offline, dataDir: DATA }, cfg)
   g.index = index
-  g.previous = readJson(path.join(edDir, Model.shiftDateKey(key, -1) + ".json"))
+  g.previous = readJson(path.join(edDir, Model.shiftDateKey(editionKey, -1) + ".json"))
 
   let ed = compose(g)
   if (opt["print-prompt"]) { process.stdout.write(prosePrompt(ed) + "\n"); return null }
@@ -223,7 +234,7 @@ async function build(opt, cfg) {
   g.portrait = g.proInstalled && heads.enabled ? await Inspiration.picture(key, heads.generator) : null
   if (g.portrait && g.portrait.problem) { log("picture: " + g.portrait.problem + " The front page goes without one."); g.portrait = null }
 
-  const sideFile = path.join(edDir, key + ".json")
+  const sideFile = path.join(edDir, editionKey + ".json")
   const side = readJson(sideFile) || {}
   const hash = crypto.createHash("sha1").update(facts).digest("hex").slice(0, 16)
   const now = Date.now()
@@ -237,10 +248,11 @@ async function build(opt, cfg) {
   ed = compose(g)
   html = renderEdition(ed)
 
-  const file = path.join(edDir, key + ".html")
+  const file = path.join(edDir, editionKey + ".html")
   writeAtomic(file, html)
+  if (g.integrations) writeAtomic(path.join(edDir, "integrations.html"), renderIntegrations(g.integrations, g.theme.palette, g.reader.name, Fonts.get(g.font), editionKey))
   // The share card beside it; the app snapshots it when Share is pressed.
-  writeAtomic(path.join(edDir, key + "-share.html"), renderShareCard(ed))
+  writeAtomic(path.join(edDir, editionKey + "-share.html"), renderShareCard(ed))
   const wx = g.weather && g.weather.raw ? Model.weatherDay(g.weather.raw, Model.shiftDateKey(key, 1)) : null
   writeAtomic(sideFile, JSON.stringify({
     date: key, firstBuiltAt: side.firstBuiltAt || now, builtAt: now, hash: hash, late: late,
@@ -249,13 +261,13 @@ async function build(opt, cfg) {
     portrait: g.portrait ? { provider: g.portrait.provider, photo: g.portrait.scene, quote: g.portrait.quote } : null
   }, null, 2) + "\n")
 
-  const entry = { date: key, title: ed.title, headline: ed.lead.headline, kicker: ed.lead.kicker, deck: ed.lead.deck || "", minutes: g.minutes, weekend: ed.weekend, late: !!late, builtAt: now, path: file }
-  const list = index.filter(e => e.date !== key).concat([entry]).sort((a, b) => a.date < b.date ? 1 : -1)
+  const entry = { date: editionKey, title: ed.title, headline: ed.lead.headline, kicker: ed.lead.kicker, deck: ed.lead.deck || "", minutes: g.minutes, weekend: ed.weekend, late: !!late, builtAt: now, path: file }
+  const list = index.filter(e => e.date !== editionKey).concat([entry]).sort((a, b) => a.date < b.date ? 1 : -1)
   writeAtomic(indexFile, JSON.stringify({ version: 1, editions: list }, null, 2) + "\n")
   writeAtomic(path.join(edDir, "index.html"), renderIndex(list, g.theme.palette, g.reader.name, Fonts.get(g.font)))
   writeAtomic(path.join(outDir, "latest.html"), "<!doctype html><meta charset=\"utf-8\"><meta http-equiv=\"refresh\" content=\"0; url=editions/" + list[0].date + ".html\"><title>" + Model.APP_NAME + "</title>\n")
 
-  const result = { date: key, path: file, headline: entry.headline, minutes: entry.minutes, late: !!late, prose: !!g.prose }
+  const result = { date: editionKey, path: file, headline: entry.headline, minutes: entry.minutes, late: !!late, prose: !!g.prose }
   process.stdout.write(JSON.stringify(result) + "\n")
   return result
 }
@@ -343,7 +355,9 @@ function publish(opt) {
 // Run by the scheduler at the hour, on wake and at logon. It sets yesterday's
 // edition once, then stays quiet until tomorrow.
 async function morning(cfg) {
-  const key = yesterday()
+  // Today's paper, about yesterday. The run is skipped once today's edition
+  // exists, so a late wake-up still sets it and a second run does nothing.
+  const key = Model.dateKeyFromDate(new Date())
   const now = new Date()
   if (now.getHours() < cfg.hour) return
   if (loadIndex().some(e => e.date === key)) return
@@ -439,30 +453,46 @@ function themeCommand(opt, cfg) {
   const mornings = unlockMornings(Model.readTotal(ledger.days, today), cfg)
   const picked = Themes.resolve(cfg.theme, mornings, null)
   const want = opt._[0]
+  const saveTheme = id => {
+    const file = P.configFile()
+    const saved = readJson(file) || {}
+    privately(DATA)
+    fs.mkdirSync(DATA, { recursive: true })
+    writeAtomic(file, JSON.stringify(Object.assign({}, P.DEFAULTS, saved, { theme: id }), null, 2) + "\n")
+  }
   if (want) {
+    const key = String(want).toLowerCase()
+    if (["milestone", "earned", "advance", "auto-advance"].includes(key)) {
+      saveTheme("milestone")
+      process.stdout.write("Theme set to auto-advance. The next edition will use your newest earned theme.\n")
+      return
+    }
+    if (key === "auto") {
+      saveTheme("auto")
+      process.stdout.write("Theme set to Auto. The next edition will follow your Mac's light or dark.\n")
+      return
+    }
     const t = Themes.byId(want)
     if (!t) {
-      process.stderr.write('No theme "' + want + '". Try: ' + Themes.THEMES.map(x => x.id).join(", ") + "\n")
+      process.stderr.write('No theme "' + want + '". Try: ' + Themes.THEMES.map(x => x.id).join(", ") + ", auto or milestone.\n")
       process.exit(2)
     }
     if (t.at > mornings) {
       process.stderr.write(t.name + " unlocks at " + t.at + " mornings; you're at " + mornings + ". Keep opening the paper.\n")
       process.exit(2)
     }
-    const file = P.configFile()
-    const saved = readJson(file) || {}
-    privately(DATA)
-    fs.mkdirSync(DATA, { recursive: true })
-    writeAtomic(file, JSON.stringify(Object.assign({}, P.DEFAULTS, saved, { theme: t.id }), null, 2) + "\n")
+    saveTheme(t.id)
     process.stdout.write("Theme set to " + t.name + ". The next edition will use it.\n")
     return
   }
   const p = Themes.perks(mornings, picked.id)
   const list = [{ id: "auto", name: "Auto", at: 0, unlocked: true, active: picked.id === "auto", remaining: 0 }].concat(p.themes)
   if (opt.json) {
-    process.stdout.write(JSON.stringify({ theme: cfg.theme, active: picked.id, mornings: mornings, themes: list }, null, 2) + "\n")
+    process.stdout.write(JSON.stringify({ theme: cfg.theme, mode: picked.mode, active: picked.id, activeName: picked.name, mornings: mornings, themes: list }, null, 2) + "\n")
     return
   }
+  const label = picked.mode === "milestone" ? "auto-advance" : picked.mode === "auto" ? "auto" : "chosen"
+  process.stdout.write("Mode: " + label + " · using " + picked.name + "\n\n")
   const pad = (s, n) => String(s) + " ".repeat(Math.max(0, n - String(s).length))
   for (const t of list) {
     const when = t.at ? t.at + " mornings" : "always"
@@ -470,6 +500,7 @@ function themeCommand(opt, cfg) {
     process.stdout.write(pad(t.id, 12) + pad(t.name, 16) + pad(when, 13) + state + "\n")
   }
   if (p.next) process.stdout.write("\nNext: " + p.next.name + " at " + p.next.at + " mornings (" + p.next.remaining + " to go).\n")
+  if (picked.mode === "milestone") process.stdout.write("\nAuto-advance is on: the paper uses the newest theme you've earned. Set a theme to override, or `inkwell-daily theme auto`.\n")
 }
 
 // `font` lists the free Google Font pairings; with an id it sets the next
@@ -583,6 +614,24 @@ function uninstall() {
 
 // ---- main ------------------------------------------------------------------------------
 
+// `config` prints settings, so a credential must never leave the machine here.
+// Match by name rather than by path, so a new secret is covered the day it is
+// added, and mask rather than drop it, so a reader can still see one is set.
+const SECRET_NAME = /^(license|licence|licensekey|apikey|key|token|secret|password)$/i
+
+function maskSecret(v) {
+  if (typeof v !== "string" || !v) return v
+  return v.length <= 8 ? "…" : v.slice(0, 4) + "…" + v.slice(-4)
+}
+
+function redact(value) {
+  if (Array.isArray(value)) return value.map(redact)
+  if (!value || typeof value !== "object") return value
+  const out = {}
+  for (const [k, v] of Object.entries(value)) out[k] = SECRET_NAME.test(k) ? maskSecret(v) : redact(v)
+  return out
+}
+
 async function main() {
   const argv = process.argv.slice(2)
   const cmd = argv[0] && !argv[0].startsWith("-") ? argv.shift() : "help"
@@ -626,7 +675,7 @@ async function main() {
     case "web": { const s = readJson(path.join(DATA, "web", "state.json")) || {}; const u = Model.artifactUrl(s.url); if (u) process.stdout.write(u + "\n"); break }
     case "install": install(opt, cfg); break
     case "uninstall": uninstall(); break
-    case "config": process.stdout.write(P.configFile() + "\n" + JSON.stringify(cfg, null, 2) + "\n"); break
+    case "config": process.stdout.write(P.configFile() + "\n" + JSON.stringify(redact(cfg), null, 2) + "\n"); break
     default: usage()
   }
 }

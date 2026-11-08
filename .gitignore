@@ -1,6 +1,10 @@
 node_modules/
 *.tmp-*
 
+# Secrets for the desks service. It holds the Composio project key.
+.env
+.env.local
+
 # Everything built locally and shipped from a release.
 dist/
 *.pkg

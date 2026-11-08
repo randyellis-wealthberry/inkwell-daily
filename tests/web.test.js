@@ -24,6 +24,11 @@ test("plugin desks stay on the machine", () => {
   assert.equal(c.html, "<p>a</p><p>b</p>")
 })
 
+test("Pro-only blocks are stripped whole, markers and all", () => {
+  const c = webCopy('<p>a</p><!-- pro:start --><section class="slot"><h2>3 emails</h2></section><!-- pro:end --><p>b</p>')
+  assert.equal(c.html, "<p>a</p><p>b</p>")
+})
+
 test("yesterday's photos are removed from the artifact", () => {
   assert.deepEqual(fileChanges(["img/aaaaaaaaaaaa.jpg", "img/bbbbbbbbbbbb.jpg"], ["img/bbbbbbbbbbbb.jpg", "img/cccccccccccc.jpg"]), { keep: ["img/bbbbbbbbbbbb.jpg", "img/cccccccccccc.jpg"], remove: ["img/aaaaaaaaaaaa.jpg"] })
   assert.deepEqual(fileChanges(undefined, ["img/cccccccccccc.jpg"]).remove, [])

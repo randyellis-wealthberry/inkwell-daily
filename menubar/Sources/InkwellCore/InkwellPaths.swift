@@ -20,6 +20,13 @@ public enum InkwellPaths {
         dataDirectory(home: home).appendingPathComponent("config.json")
     }
 
+    /// The Pro license, kept apart from config.json because `inkwell-daily
+    /// config` prints that file and people paste the output into bug reports.
+    /// `inkwell-pro activate` writes the same file.
+    public static func proFile(home: URL = FileManager.default.homeDirectoryForCurrentUser) -> URL {
+        dataDirectory(home: home).appendingPathComponent("pro.json")
+    }
+
     /// The headshots Make headlines draws from, and the ratings beside them.
     public static func portraitsDirectory(home: URL = FileManager.default.homeDirectoryForCurrentUser) -> URL {
         dataDirectory(home: home).appendingPathComponent("portraits", isDirectory: true)

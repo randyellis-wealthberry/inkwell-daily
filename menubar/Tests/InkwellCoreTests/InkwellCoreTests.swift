@@ -117,3 +117,63 @@ func shareLinks() {
     #expect(ShareRequest(url: URL(string: "inkwell-daily://portrait?date=2026-11-06")!) == nil)
     #expect(PortraitRating(url: URL(string: "inkwell-daily://share?date=2026-11-06")!) == nil)
 }
+
+@Test("A desk link carries only a known desk and action")
+func deskLinks() {
+    let manage = DeskRequest(url: URL(string: "inkwell-daily://desk?desk=gmail")!)
+    #expect(manage?.desk == "gmail")
+    #expect(manage?.action == "manage")
+    #expect(manage?.name == "Gmail · The Mail Bag")
+    #expect(manage?.instruction.contains("Pro sheet") == true)
+
+    let reconnect = DeskRequest(url: URL(string: "inkwell-daily://desk?desk=slack&action=reconnect")!)
+    #expect(reconnect?.desk == "slack")
+    #expect(reconnect?.action == "reconnect")
+    #expect(reconnect?.name == "Slack · The City Desk")
+
+    #expect(DeskRequest(url: URL(string: "inkwell-daily://desk?desk=mail&action=manage")!)?.desk == "gmail", "the slot id maps to the product")
+    #expect(DeskRequest(url: URL(string: "inkwell-daily://desk?desk=../../etc")!) == nil)
+    #expect(DeskRequest(url: URL(string: "inkwell-daily://desk?desk=gmail&action=drop")!) == nil)
+    #expect(DeskRequest(url: URL(string: "https://desk?desk=gmail")!) == nil)
+}
+
+private final class RequestBox: @unchecked Sendable {
+    var request: URLRequest?
+}
+
+@Test("The hosted desk reads its status and returns a Connect Link")
+func hostedDeskClient() async throws {
+    let base = URL(string: "http://127.0.0.1:8787")!
+    let box = RequestBox()
+    let client = HostedDeskClient(base: base, license: "dev") { request in
+        box.request = request
+        if request.url?.path == "/status" {
+            return (Data(#"{"ok":true,"connected":true,"status":"ACTIVE"}"#.utf8), 200)
+        }
+        return (Data(#"{"ok":true,"url":"https://connect.composio.dev/link/ln_1"}"#.utf8), 200)
+    }
+
+    let status = await client.status()
+    #expect(status.connected)
+    #expect(status.label == "Connected")
+
+    let url = try await client.connect()
+    #expect(url.absoluteString == "https://connect.composio.dev/link/ln_1")
+    #expect(box.request?.value(forHTTPHeaderField: "authorization") == "Bearer dev")
+    #expect(box.request?.httpMethod == "POST")
+    #expect(box.request?.url?.path == "/connect")
+}
+
+@Test("The hosted desk reports a missing connection and a failed proxy")
+func hostedDeskMissing() async {
+    let base = URL(string: "http://127.0.0.1:8787")!
+    let missing = HostedDeskClient(base: base, license: "dev") { _ in
+        (Data(#"{"ok":true,"connected":false,"status":"missing"}"#.utf8), 200)
+    }
+    #expect(await missing.status().label == "Not connected")
+
+    let failed = HostedDeskClient(base: base, license: "dev") { _ in (Data(), 500) }
+    let result = await failed.status()
+    #expect(result.label == "Proxy unreachable")
+    #expect(result.connected == false)
+}

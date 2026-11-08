@@ -138,7 +138,7 @@ test("a settings file is read defensively", () => {
   assert.equal(c.theme, "sunday")
   assert.equal(c.font, "broadsheet")
   fs.writeFileSync(f, JSON.stringify({ theme: 3, font: 3 }))
-  assert.equal(P.readConfig(f).theme, "auto")
+  assert.equal(P.readConfig(f).theme, "milestone")
   assert.equal(P.readConfig(f).font, "inkwell")
   assert.equal(P.readConfig(f).headlines, undefined)
   assert.equal(P.readConfig(f).developer, undefined)

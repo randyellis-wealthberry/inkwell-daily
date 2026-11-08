@@ -12,9 +12,10 @@ Inkwell Daily is the desktop port of the [Omarchy plugin](https://github.com/wea
 - **Your week in agents.** Prompts typed per day for the last seven days.
 - **The usage line.** A 14-day line of tokens — or prompts when there are no tokens — with a forecast for tomorrow and a plain-language blurb.
 - **Your inkwell habit.** A five-week ledger of the mornings you opened the paper, with the run, the best run, and the month's count. Opening an edition with `inkwell-daily open` marks the morning; the next edition shows it.
-- **The perks.** Milestone themes unlocked by the mornings you've opened the paper: First Light at 3, Sunday Paper at 7, Nocturne at 14, Sepia at 30, Gilt at 60, Century at 100. Themes stay unlocked; Auto follows your Mac's light or dark.
-- **The Pro notice.** Until Inkwell Pro is installed, the paper carries a small Slack desk notice and the **Add Slack to Inkwell** call to action. The button is inactive for now; it will open the Inkwell Daily Pro key desk.
+- **The perks.** Milestone themes unlocked by the mornings you've opened the paper: First Light at 3, Sunday Paper at 7, Nocturne at 14, Sepia at 30, Gilt at 60, Century at 100. Themes stay unlocked; Auto-advance uses your newest earned theme, and Auto follows your Mac's light or dark.
+- **The Pro preview.** Until Inkwell Pro is installed, the paper carries one “The Pro desks” standing feature after the front: five honest teasers for Gmail, Slack, Notion, Google Calendar and Basecamp, with an inactive **Open the desks with Pro** button and a **Coming soon** status. The button carries the `data-paywall="inkwell-daily-pro"` marker.
 - **The model desk.** Yesterday's models and the month to date, ranked by tokens, with a price: OpenCode's own cost where it records one, otherwise estimated at published list prices. It reads Claude Code and Codex token counts, and OpenCode's own model, token and cost records. Any model and provider can appear.
+- **The integration library.** With Inkwell Pro installed, the paper carries an **Integrations** button beside **All editions**. It opens a card library of the 25 most popular Composio integrations, each marked **Enabled** or **Not enabled**, with a link back to the paper.
 - **The back page.** A jumble made from the day's names, an almanac (theme, wallpaper, free disk), and classifieds made of real loose ends: uncommitted changes, an expired `gh` sign-in.
 - **Back issues, the Sunday magazine, corrections, the late-edition seal, the reading time and your streak**, all as in the original.
 
@@ -58,7 +59,7 @@ Options: `--hour H`, `--no-open`, `--no-schedule`, `--version V`,
 ```bash
 brew install randyellis-wealthberry/tap/inkwell-daily
 inkwell-daily install        # the morning run, at 5 by default
-inkwell-daily build          # yesterday's edition, now
+inkwell-daily build          # today's edition, about yesterday, now
 inkwell-daily open
 ```
 
@@ -125,7 +126,7 @@ inkwell-daily open
 - **macOS.** A launchd agent at `~/Library/LaunchAgents/com.wealthberrylabs.inkwell-daily.plist`. If your Mac was asleep at the hour, it runs when the Mac wakes.
 - **Windows.** A Task Scheduler task named `InkwellDaily`. It runs daily at the hour, at sign-in, and as soon as it can after a missed start.
 
-The morning run sets yesterday's edition once, shows a notification and, with `web` on, publishes it. Later runs that day do nothing. To pick another hour, run `inkwell-daily install --hour 7`.
+The morning run sets today's edition once — dated today, reporting yesterday — shows a notification and, with `web` on, publishes it. Later runs that day do nothing. To pick another hour, run `inkwell-daily install --hour 7`.
 
 `inkwell-daily uninstall` removes the schedule. Your editions stay where they are.
 
@@ -145,11 +146,11 @@ the menu bar app.
 
 | Command | What it does |
 | --- | --- |
-| `inkwell-daily build [--date YYYY-MM-DD] [--prose] [--offline]` | Set an edition (yesterday's by default) |
+| `inkwell-daily build [--date YYYY-MM-DD] [--prose] [--offline]` | Set an edition dated today, reporting yesterday. `--date` picks the cover date |
 | `inkwell-daily open [YYYY-MM-DD]` | Read the newest edition, or that day's, in your browser |
 | `inkwell-daily index` | Every edition |
 | `inkwell-daily status` | `{"latest":…,"unread":…,"run":…,"checkedToday":…,"web":…}` |
-| `inkwell-daily theme [id]` | The milestone themes you've unlocked; set one for the next edition |
+| `inkwell-daily theme [id]` | The milestone themes you've unlocked; set one, `auto`, or `milestone` for auto-advance |
 | `inkwell-daily font [id]` | List or set the paper's Google Font pairing |
 | `inkwell-daily trend [--days N] [--date D] [--json]` | Tokens and prompts per day, with a forecast |
 | `inkwell-daily publish [--dry-run]` | Put the newest edition on claude.ai |
@@ -167,7 +168,7 @@ the menu bar app.
   "notify": true,
   "prose": false,
   "web": false,
-  "theme": "auto",
+  "theme": "milestone",
   "font": "inkwell",
   "repos": ["~/code/my-app"],
   "latitude": 51.51,
@@ -179,11 +180,11 @@ the menu bar app.
 
 | Setting | Default | Description |
 | --- | --- | --- |
-| `hour` | `5` | The hour the morning run sets yesterday's edition. `install` writes it here too |
+| `hour` | `5` | The hour the morning run sets today's edition. `install` writes it here too |
 | `notify` | `true` | A notification when the paper arrives |
 | `prose` | `false` | Asks Claude Code (`claude -p`, no tools) to rewrite the headlines from the facts. Numbers it adds that aren't in the facts are dropped |
 | `web` | `false` | Publishes each edition to one private claude.ai link |
-| `theme` | `auto` | `auto`, or an unlocked milestone theme (`firstlight`, `sunday`, `nocturne`, `sepia`, `gilt`, `century`) |
+| `theme` | `milestone` | `milestone` (auto-advance to the newest earned theme), `auto`, or an unlocked milestone theme (`firstlight`, `sunday`, `nocturne`, `sepia`, `gilt`, `century`) |
 | `font` | `inkwell` | A free Google Font pairing: `inkwell`, `broadsheet`, `gazette`, `modern`, `bodoni`, `weekend`, `literary` |
 | `repos` | `[]` | Extra git repositories for the repo desk. Every repo an agent session ran in that week is included anyway |
 | `latitude`, `longitude`, `place` | not set | Where the weather is for. Without them, wttr.in guesses from your IP address |
@@ -241,17 +242,19 @@ This works as in the Omarchy version. A short background Claude Code session (`c
 
 ## Inkwell Pro
 
-The free paper covers your agent logs, git and the weather. **Inkwell Pro** adds desks for the rest of your day: your mail first, then Slack, Notion and Basecamp. Each one is read through your own claude.ai connectors by a Claude Code session that can only read: it can search and open, and nothing else.
+The free paper covers your agent logs, git and the weather. **Inkwell Pro** adds desks for the rest of your day: your mail first, then Slack, Notion, Google Calendar and Basecamp. Each one reads your own accounts through [Composio](https://composio.dev), and only through read-only tools: the session it runs in can fetch, list and search, and nothing else.
 
 ```bash
 npm install -g <the Inkwell Pro package you're sent>
-inkwell-pro activate <your license key>
+inkwell-pro activate <your license key> --url <your desks service>
 inkwell-daily sources      # gmail  Gmail  (inkwell-pro)
 ```
 
+The Composio project key never travels in the package — a published package is readable, so a key inside it would be everyone's key. It is held by a small desks service; the plugin keeps only your license key and that service's URL, and the service gives every license its own Composio identity. `server/README.md` in this repo is that service; `pro/README.md` is the plugin.
+
 Turn a desk off in `config.json` with `"sources": { "gmail": { "enabled": false } }`.
 
-Until Pro is installed, the free paper prints a Pro notice in its place: a pitch for the Slack desk with an inactive **Add Slack to Inkwell** button. The button carries the `data-paywall="inkwell-daily-pro"` marker for the key desk that will follow.
+Until Pro is installed, the free paper prints one “The Pro desks” preview after the front: five honest teasers for Gmail, Slack, Notion, Google Calendar and Basecamp, with an inactive **Open the desks with Pro** button and a **Coming soon** status. The button carries the `data-paywall="inkwell-daily-pro"` marker for the key desk that will follow.
 
 ### Writing your own source
 
@@ -289,6 +292,8 @@ On macOS, everything the paper writes is readable only by you (folders 0700, fil
 ## Privacy
 
 The editions quote your prompts and commit subjects, so treat the data folder as you would your shell history. The read ledger (`reads.json`) keeps only the days you opened the paper, never what you read. The builder only goes to the network for public data: Open-Meteo, wttr.in when no place is set, and models.dev for prices when neither Inkwell nor OpenCode already has them. `--offline` keeps it entirely local. The page loads its typefaces from Google Fonts. With `prose` or `web` on, the edition's facts or the whole page go to Claude.
+
+That network list is the free paper. With a Pro desk on, that account's content — mail, messages, pages, events, to-dos — leaves the machine for your desks service and Composio, which is a different promise. `--offline`, or a desk left off, is the way to keep it local.
 
 The model desk reads only model ids, token counts and costs from your agents' records; it never keeps their message text. OpenCode's recorded cost is used where it has one; the rest are list prices, so a subscription or a discount won't show in those estimates.
 

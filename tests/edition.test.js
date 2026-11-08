@@ -1,7 +1,8 @@
 const test = require("node:test")
 const assert = require("node:assert/strict")
 const { compose, factsText, prosePrompt } = require("../lib/compose.js")
-const { renderEdition, renderIndex, plainText } = require("../lib/render.js")
+const { renderEdition, renderIndex, renderIntegrations, renderShareCard, plainText } = require("../lib/render.js")
+const { webCopy } = require("../lib/web.js")
 const Model = require("../Model.js")
 
 const at = (key, h, m) => { const d = Model.parseDateKey(key); d.setHours(h, m || 0); return d.getTime() }
@@ -38,15 +39,46 @@ function gathering(over) {
   }, over || {})
 }
 
+// Five desks in every state the paper has to hold: open, expired, empty,
+// error and offline.
+function deskSet() {
+  const section = (desk, source, headline, deck, note, items) => ({ desk, source, kicker: source, headline, deck, note, items: items || [] })
+  const mail = section("mail", "Gmail", "29 emails, 3 waiting on you", "Two are from the same client.", "4 newsletters left out.",
+    [{ time: "9:14 am", title: "Ada", detail: "Re: launch: Wants a date", tag: "Reply" }])
+  const city = section("city", "Slack", "The connection has lapsed", "", "Slack stopped answering on Thursday evening.")
+  const notebook = section("notebook", "Notion", "A quiet notebook", "No pages changed yesterday.", "The notebook is open and answering.")
+  const project = section("project", "Basecamp", "Basecamp didn't report", "", "The desk answered with an error: 429 Too Many Requests.")
+  const daybook = section("daybook", "Calendar", "Yesterday's copy", "", "This edition was built without a network.",
+    [{ time: "9:30", title: "Standup", detail: "#eng", tag: "Room 2" }])
+  const desks = [
+    { id: "gmail", name: "Gmail", desk: "mail", state: "open", lastSet: "6:40 am", action: { label: "Manage Gmail", href: "inkwell-daily://desk?desk=gmail" }, section: mail },
+    { id: "slack", name: "Slack", desk: "city", state: "expired", lastSet: "Thursday, 6:12 am", action: { label: "Reconnect Slack", href: "inkwell-daily://desk?desk=slack" }, section: city },
+    { id: "notion", name: "Notion", desk: "notebook", state: "empty", lastSet: "Wednesday, 6:20 am", action: { label: "Open Notion", href: "inkwell-daily://desk?desk=notion" }, section: notebook },
+    { id: "basecamp", name: "Basecamp", desk: "project", state: "error", lastSet: "Saturday, 6:31 am", action: { label: "Retry Basecamp", href: "inkwell-daily://desk?desk=basecamp" }, section: project },
+    { id: "calendar", name: "Calendar", desk: "daybook", state: "offline", lastSet: "Saturday, 6:30 am", action: { label: "Manage Calendar", href: "inkwell-daily://desk?desk=calendar" }, section: daybook }
+  ]
+  return { sections: [mail, city, notebook, project, daybook], desks, meter: [], classifieds: [] }
+}
+
 test("a day of your own work leads the paper", () => {
   const ed = compose(gathering())
   assert.equal(ed.lead.kind, "desk")
   assert.equal(ed.lead.headline, "1 commit landed in Isobar")
   assert.equal(ed.desk, null)
   assert.equal(ed.title, "Ada's Inkwell Daily")
-  assert.match(ed.lead.paragraphs[0], /^At 4:19 pm, in ~\/Work, you asked Claude Code: “make me a beautiful weather plugin”/)
+  assert.match(ed.lead.paragraphs[0], /^At 4:19 pm, in ~\/Work, you asked Claude Code:$/)
+  assert.equal(ed.lead.quote.text, "make me a beautiful weather plugin")
+  assert.equal(ed.lead.quote.by, "You · 4:19 pm")
+  assert.match(ed.lead.paragraphs[1], /^It ran to 2 prompts by 5:02 pm/)
   assert.equal(ed.week.days.length, 7)
   assert.equal(ed.week.days[6].count, 2)
+})
+
+test("the prompt is a pull quote, not a wall of text", () => {
+  const html = renderEdition(compose(gathering()))
+  assert.match(html, /<blockquote class="promptquote"><p>make me a beautiful weather plugin<\/p><cite>You · 4:19 pm<\/cite><\/blockquote>/)
+  assert.ok(!/you asked Claude Code: “make me/.test(html), "the prompt is not inline")
+  assert.match(factsText(compose(gathering())), /make me a beautiful weather plugin/)
 })
 
 test("goals lead a day without your work, and the desk keeps its place", () => {
@@ -59,6 +91,69 @@ test("goals lead a day without your work, and the desk keeps its place", () => {
   assert.equal(ed.lead.headline, "2 goals on the Kickoff wire")
   assert.ok(ed.desk && ed.desk.quiet)
   assert.equal(ed.desk.headline, "No agent work on file")
+})
+
+test("the paper is dated the morning it is read, and reports the day before", () => {
+  const g = gathering({ key: "2026-10-15", editionKey: "2026-10-16" })
+  const ed = compose(g)
+  const page = plainText(renderEdition(ed))
+
+  assert.equal(ed.key, "2026-10-15", "content stays on the reported day")
+  assert.equal(ed.editionKey, "2026-10-16")
+  assert.equal(ed.longDate, Model.longDate("2026-10-16"))
+  assert.equal(ed.editionNo, Model.editionNumber("2026-10-16"))
+  assert.match(page, /Friday, 16 October 2026/, "the cover carries the morning")
+  assert.match(page, /Reporting Thursday, 15 October/, "and says what it reports")
+})
+
+test("the Sunday paper carries the weekend edition, reporting Saturday", () => {
+  const g = gathering({ key: "2026-10-17", editionKey: "2026-10-18" })
+  const ed = compose(g)
+  assert.equal(ed.weekend, true, "built Sunday morning from Saturday's work")
+  assert.match(ed.title, /Sunday/)
+  assert.equal(ed.longDate, Model.longDate("2026-10-18"))
+})
+
+test("with no bar widgets the weather and week fill the row", () => {
+  const ed = compose(gathering({ tomorrow: { elevation: null, easel: null, munger: null, day: "Friday" } }))
+  const page = renderEdition(ed)
+  assert.match(page, /class="ahead duo"/, "no dead third column")
+  assert.doesNotMatch(page, /Coming Friday/, "nothing invented to fill it")
+})
+
+test("the integration library is a card per app, and says which are on", () => {
+  const palette = Model.parseColors('background = "#1a1b26"\nforeground = "#a9b1d6"\naccent = "#7aa2f7"\nyellow = "#e0af68"')
+  const html = renderIntegrations({
+    integrations: [
+      { slug: "gmail", name: "Gmail", category: "email", description: "Google's mail.", connected: true },
+      { slug: "slack", name: "<script>x</script>", category: "chat", description: "Chat.", connected: false, connect: "http://127.0.0.1:8787/connect?t=abc" }
+    ]
+  }, palette, "Ada", undefined, "2026-11-08")
+
+  assert.match(html, /class="int-card on"/)
+  assert.match(html, /class="int-card off"/)
+  assert.match(html, />Enabled</)
+  assert.match(html, />Not enabled</)
+  assert.match(html, /class="int-cta" href="http:\/\/127\.0\.0\.1:8787\/connect\?t=abc"/, "a card has a Connect link")
+  assert.match(html, /class="int-cta on" href="https:\/\/app\.composio\.dev"[^>]*>Manage →/, "an enabled card has a Manage link")
+  assert.match(html, /href="2026-11-08.html"/, "a way back to the paper")
+  assert.ok(!html.includes("<script>x"), "a toolkit name is escaped")
+})
+
+test("the paper links to the library only when it has one", () => {
+  const withLib = compose(gathering({ integrations: { ok: true, integrations: [{ slug: "gmail" }] } }))
+  assert.equal(withLib.integrations, 1)
+  assert.match(renderEdition(withLib), /href="integrations.html"/)
+
+  const without = compose(gathering())
+  assert.equal(without.integrations, 0)
+  assert.doesNotMatch(renderEdition(without), /href="integrations.html"/)
+})
+
+test("a caller with only a key keeps the old same-day behaviour", () => {
+  const ed = compose(gathering())
+  assert.equal(ed.editionKey, ed.key)
+  assert.equal(ed.longDate, Model.longDate(ed.key))
 })
 
 test("a quiet day lets the building lead, with its own story", () => {
@@ -165,7 +260,7 @@ test("the page escapes what it prints and carries every section", () => {
   const html = renderEdition(compose(g))
   assert.ok(!html.includes("<script>alert(1)"))
   assert.ok(html.includes("&lt;script&gt;alert(1)&lt;/script&gt; &amp; co"))
-  for (const s of ['class="front"', 'class="fold"', 'class="ahead"', 'class="back"', "Unscramble yesterday", "@media print", "Reading time"]) assert.ok(html.includes(s), s)
+  for (const s of ['class="front"', 'class="fold"', 'class="ahead', 'class="back"', "Unscramble yesterday", "@media print", "Reading time"]) assert.ok(html.includes(s), s)
   assert.ok(!/\bColor\./.test(html))
   assert.ok(plainText(html).split(/\s+/).length > 200)
 })
@@ -240,21 +335,24 @@ test("the index prints minutes as a number", () => {
   assert.ok(!html.includes("<b>3</b>") && !html.includes("<i>Lakeside"))
 })
 
-test("a free paper prints the Pro null state and its inactive Slack CTA", () => {
+test("a free paper prints the Pro preview and its inactive CTA", () => {
   const ed = compose(gathering())
   assert.equal(ed.pro.installed, false)
-  assert.equal(ed.pro.cta, "Add Slack to Inkwell")
+  assert.equal(ed.pro.cta, "Open the desks with Pro")
   const html = renderEdition(ed)
-  assert.ok(html.includes('class="pro"'))
-  assert.ok(html.includes("Your team&#39;s Slack, set in type"))
-  assert.match(html, /<button[^>]*\bdisabled\b[^>]*>Add Slack to Inkwell<\/button>/)
+  assert.ok(html.includes('class="pro-preview"'))
+  assert.ok(html.includes("Your other desks, set in type"))
+  assert.match(html, /<button[^>]*\bdisabled\b[^>]*>Open the desks with Pro<\/button>/)
   assert.ok(html.includes('data-paywall="inkwell-daily-pro"'))
+  for (const name of ["The Mail Bag", "The City Desk", "The Notebook", "The Day Book", "The Project Desk"]) assert.ok(html.includes(name), name + " is previewed")
+  assert.ok(html.includes("With Pro"))
+  assert.ok(html.includes("Coming soon"))
 })
 
-test("an installed Inkwell Pro takes the notice's place", () => {
+test("an installed Inkwell Pro takes the preview's place", () => {
   const html = renderEdition(compose(gathering({ proInstalled: true })))
-  assert.ok(!html.includes('class="pro"'))
-  assert.ok(!html.includes("Add Slack to Inkwell"))
+  assert.ok(!html.includes('class="pro-preview"'))
+  assert.ok(!html.includes("Your other desks, set in type"))
 })
 
 test("plugin sections are printed escaped, with their meter and classifieds, and counted in the facts", () => {
@@ -266,8 +364,71 @@ test("plugin sections are printed escaped, with their meter and classifieds, and
   assert.ok(html.includes("&lt;script&gt;x&lt;/script&gt;"))
   assert.ok(!html.includes("<script>x</script>"))
   assert.ok(html.includes("A reply to Ada."))
-  assert.ok(html.includes("from your agent logs and git, Mail"))
+  assert.ok(!html.includes("from your agent logs and git, Mail"), "a desk's name stays out of the colophon")
   assert.match(factsText(ed), /29 threads, 3 waiting on you/)
+})
+
+test("the five desks print in their beats, with a directory on the back page", () => {
+  const html = renderEdition(compose(gathering({ extras: deskSet(), proInstalled: true })))
+  const front = html.indexOf('<section class="front">'), mail = html.indexOf('id="mail-h"')
+  const city = html.indexOf('id="city-h"'), notebook = html.indexOf('id="notebook-h"')
+  const project = html.indexOf('id="project-h"'), daybook = html.indexOf('id="daybook-h"')
+  assert.ok(front >= 0 && mail > front, "the mail bag follows the front page")
+  assert.ok(city > mail, "the city desk follows the mail bag")
+  assert.ok(notebook > city && project > notebook, "the notebook and project desk sit below the fold")
+  assert.ok(daybook > project, "the day book sits beside the week")
+  assert.match(html, /Wire live · 6:40 am/)
+  assert.match(html, /Wire closed/)
+  assert.match(html, /Set offline/)
+  assert.match(html, /Wire down/)
+  assert.match(html, /id="dir-h"/)
+  assert.match(html, /The Mail Bag/)
+  assert.match(html, /The City Desk/)
+  assert.match(html, /inkwell-daily:\/\/desk\?desk=gmail/)
+  assert.match(html, /inkwell-daily:\/\/desk\?desk=slack/)
+})
+
+test("a closed desk leaves no slot and appears only in the directory", () => {
+  const extras = deskSet()
+  extras.desks[1] = Object.assign({}, extras.desks[1], { state: "closed", section: null })
+  const html = renderEdition(compose(gathering({ extras: extras, proInstalled: true })))
+  assert.ok(!html.includes('id="city-h"'), "no slot for a closed desk")
+  assert.match(html, /The City Desk/)
+  assert.match(html, /Not connected/)
+  assert.match(html, /Connect →/)
+})
+
+test("the free paper carries no desk and no directory", () => {
+  const html = renderEdition(compose(gathering()))
+  assert.ok(!/class="slot(?:\s|")/.test(html), "no desk slot")
+  assert.ok(!html.includes('class="directory'), "no desk directory")
+  assert.ok(!html.includes("pro:start"), "no Pro markers")
+  assert.ok(html.includes('class="pro-preview"'), "the free paper carries the Pro preview")
+})
+
+test("desk content is escaped in its slot", () => {
+  const extras = deskSet()
+  extras.desks[0].section.headline = "<b>29</b> emails"
+  extras.desks[0].section.items[0].title = "<script>x</script>"
+  const html = renderEdition(compose(gathering({ extras: extras, proInstalled: true })))
+  assert.ok(html.includes("&lt;b&gt;29&lt;/b&gt; emails"))
+  assert.ok(html.includes("&lt;script&gt;x&lt;/script&gt;"))
+  assert.ok(!html.includes("<script>x</script>"))
+})
+
+test("the web copy and the share card never carry a desk", () => {
+  const ed = compose(gathering({ extras: deskSet(), proInstalled: true }))
+  const web = webCopy(renderEdition(ed)).html
+  assert.ok(!/The Mail Bag|29 emails|Reconnect Slack|Standing notices|Basecamp|pro:start/.test(web), "no desk in the web copy")
+  const card = renderShareCard(ed)
+  assert.ok(!/The Mail Bag|29 emails|Basecamp/.test(card), "no desk in the share card")
+})
+
+test("the free paper's web copy keeps the Pro preview", () => {
+  const web = webCopy(renderEdition(compose(gathering()))).html
+  assert.ok(web.includes("The Pro desks"))
+  assert.ok(web.includes("Coming soon"))
+  assert.ok(!web.includes("pro:start"))
 })
 
 test("Pro's portrait sits under the lead with good and bad buttons", () => {
