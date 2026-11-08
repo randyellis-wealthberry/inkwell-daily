@@ -7,6 +7,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let model = InkwellModel()
     private var statusItem: NSStatusItem?
     private var settingsWindow: NSWindow?
+    private var proWindow: NSWindow?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -27,6 +28,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         model.onStatusChange = { [weak self] in
             self?.updateStatusItem()
         }
+        model.onDeskAction = { [weak self] request in
+            self?.showProSettings(request)
+        }
         rebuildMenu()
     }
 
@@ -35,7 +39,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         for url in urls {
             if let rating = PortraitRating(url: url) { model.ratePortrait(rating) }
             if let request = ShareRequest(url: url) { model.share(request) }
+            if let request = DeskRequest(url: url) { showProSettings(request) }
+            else if url.scheme == "inkwell-daily", url.host == "desks" { showProSettings(nil) }
         }
+    }
+
+    private func showProSettings(_ request: DeskRequest?) {
+        if proWindow == nil {
+            let window = NSWindow(
+                contentRect: NSRect(x: 0, y: 0, width: 520, height: 540),
+                styleMask: [.titled, .closable],
+                backing: .buffered,
+                defer: false
+            )
+            window.title = "Inkwell Daily Pro"
+            window.isReleasedWhenClosed = false
+            window.center()
+            proWindow = window
+        }
+        proWindow?.contentView = NSHostingView(rootView: ProSettingsView(model: model, request: request))
+        NSApp.activate(ignoringOtherApps: true)
+        proWindow?.makeKeyAndOrderFront(nil)
     }
 
     func menuWillOpen(_ menu: NSMenu) {

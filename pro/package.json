@@ -1,0 +1,23 @@
+{
+  "name": "inkwell-pro",
+  "version": "0.1.0",
+  "description": "The five Pro desks for Inkwell Daily, read through your own accounts.",
+  "license": "MIT",
+  "author": "Randy Ellis",
+  "main": "index.js",
+  "bin": {
+    "inkwell-pro": "bin/inkwell-pro.js"
+  },
+  "files": [
+    "bin",
+    "lib",
+    "index.js",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node --test"
+  }
+}

@@ -25,11 +25,12 @@ test("milestone themes unlock with the mornings in the ledger", () => {
   assert.equal(all.themes.find(t => t.id === "century").active, true)
 })
 
-test("a chosen theme falls back to auto until it is earned", () => {
+test("a chosen theme falls back to the newest earned theme until it is earned", () => {
   const auto = { mode: "dark", background: "#000" }
   const locked = Themes.resolve("sunday", 3, auto)
-  assert.equal(locked.id, "auto")
-  assert.equal(locked.palette, auto)
+  assert.equal(locked.id, "firstlight")
+  assert.equal(locked.mode, "explicit")
+  assert.equal(locked.palette.mode, "light")
   assert.equal(locked.locked.id, "sunday")
   assert.equal(locked.locked.remaining, 4)
 
@@ -41,4 +42,17 @@ test("a chosen theme falls back to auto until it is earned", () => {
 
   assert.equal(Themes.resolve("auto", 50, auto).id, "auto")
   assert.equal(Themes.resolve("nonsense", 50, auto).id, "auto")
+})
+
+test("auto-advance follows the newest theme the mornings have earned", () => {
+  const auto = { mode: "dark", background: "#000" }
+  assert.equal(Themes.resolve("milestone", 0, auto).id, "auto")
+  assert.equal(Themes.resolve("milestone", 3, auto).id, "firstlight")
+  assert.equal(Themes.resolve("milestone", 7, auto).id, "sunday")
+  assert.equal(Themes.resolve("milestone", 14, auto).id, "nocturne")
+  assert.equal(Themes.resolve("milestone", 100, auto).id, "century")
+  assert.equal(Themes.resolve("milestone", 7, auto).mode, "milestone")
+  assert.equal(Themes.resolve(undefined, 7, auto).id, "sunday", "the default is auto-advance")
+  assert.equal(Themes.newestEarned(6).id, "firstlight")
+  assert.equal(Themes.newestEarned(2), null)
 })
