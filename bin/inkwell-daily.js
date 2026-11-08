@@ -15,7 +15,7 @@ const Model = require("../Model.js")
 const P = require("../lib/platform.js")
 const C = require("../lib/collect.js")
 const { compose, factsText, prosePrompt, clock } = require("../lib/compose.js")
-const { renderEdition, renderIndex, plainText } = require("../lib/render.js")
+const { STYLES, renderEdition, renderIndex, restyle, styleTokens, plainText } = require("../lib/render.js")
 const { webCopy, fileChanges } = require("../lib/web.js")
 const { LINK_MAX, CACHE_JSON_MAX } = require("../lib/fetch.js")
 const { privately } = require("../lib/private.js")
@@ -24,6 +24,8 @@ const PR = require("../lib/prices.js")
 const Themes = require("../lib/themes.js")
 const Fonts = require("../lib/fonts.js")
 const Trend = require("../lib/trend.js")
+const Portrait = require("../lib/portrait.js")
+const Inspiration = require("../lib/inspiration.js")
 const { USAGE } = require("../lib/usage.js")
 
 // A Node SEA executable runs this file from inside the binary: there is no
@@ -47,7 +49,7 @@ function flags(argv) {
   const out = { _: [] }
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]
-    if (a === "--date" || a === "--out" || a === "--prose-file" || a === "--hour" || a === "--days") out[a.slice(2)] = argv[++i] || ""
+    if (a === "--date" || a === "--out" || a === "--prose-file" || a === "--hour" || a === "--days" || a === "--theme" || a === "--font" || a === "--look") out[a.slice(2)] = argv[++i] || ""
     else if (a.startsWith("--")) out[a.slice(2)] = true
     else out._.push(a)
   }
@@ -93,7 +95,7 @@ function gather(key, opt, cfg) {
   const trendUsage = C.claudeUsage(trendFrom, key).concat(C.codexUsage(trendFrom, key), C.opencodeUsage(trendFrom, key))
   const reads = loadReads()
   const theme = C.desktop()
-  const chosen = Themes.resolve(cfg.theme, Model.readTotal(reads.days, key), theme.palette)
+  const chosen = Themes.resolve(cfg.theme, unlockMornings(Model.readTotal(reads.days, key), cfg), theme.palette)
   if (chosen.id !== "auto") {
     theme.palette = chosen.palette
     theme.theme = chosen.name
@@ -106,6 +108,7 @@ function gather(key, opt, cfg) {
     reader: C.reader(),
     theme: theme,
     font: cfg.font,
+    paperStyle: cfg.style,
     wallpaperImage: theme.wallpaperPath ? C.imageData(theme.wallpaperPath, 1920, 70) : "",
     kickoff: [], kickoffWeek: [],
     elevation: null, elevationTomorrow: null, easel: null, easelInstalled: false, easelTomorrow: null, munger: null, mungerTomorrow: null,
@@ -120,7 +123,8 @@ function gather(key, opt, cfg) {
     modelUsage: usage,
     prices: usage.length ? PR.load(DATA, net) : {},
     trend: Trend.compute(trendSessions, trendUsage, key, 14),
-    week: {}
+    week: {},
+    proInstalled: false
   }
 }
 
@@ -135,6 +139,54 @@ function askClaude(prompt, cwd) {
   }
 }
 
+// Mornings that count toward unlocking themes. Developer Pro unlocks them
+// all, so every theme can be tried; the perks ledger still shows real reads.
+function unlockMornings(real, cfg) {
+  return cfg.developer && cfg.developer.pro ? Math.max(real, Themes.THEMES.reduce((m, t) => Math.max(m, t.at), 0)) : real
+}
+
+// Yesterday's prompts and commits, for the portrait's mood.
+function dayCounts(g, key) {
+  return {
+    prompts: g.sessions.reduce((n, s) => n + s.prompts.filter(p => p.key === key).length, 0),
+    commits: g.desk.reduce((n, p) => n + p.commits.length, 0)
+  }
+}
+
+// `portrait good|bad [date]` records a verdict on that edition's picture;
+// `portrait test` runs the generator once; plain `portrait` prints how each
+// provider has done.
+async function portraitCommand(opt, cfg) {
+  const dir = Portrait.folder(DATA)
+  const verdict = opt._[0]
+  if (verdict === "test") {
+    privately(DATA)
+    const pic = await Inspiration.picture(opt._[1] || yesterday(), Inspiration.settings(cfg).generator)
+    let r = { ok: false, error: "Choose Recraft as the image service and add its key first." }
+    if (pic && pic.problem) r = { ok: false, error: pic.problem }
+    else if (pic) {
+      const m = /^data:image\/(\w+);base64,(.*)$/.exec(pic.image)
+      const file = path.join(DATA, "portrait-test." + (m[1] === "jpeg" ? "jpg" : m[1]))
+      writeAtomic(file, Buffer.from(m[2], "base64"))
+      r = { ok: true, path: file, photo: pic.scene, quote: pic.quote, provider: pic.provider }
+    }
+    process.stdout.write(JSON.stringify(r) + "\n")
+    if (!r.ok) { process.stderr.write(r.error + "\n"); process.exit(1) }
+    return
+  }
+  if (!verdict) {
+    const s = Portrait.summary(Portrait.readRatings(dir))
+    process.stdout.write(JSON.stringify({ folder: dir, photos: Portrait.listPhotos(dir).length, providers: s.providers, ratedPhotos: s.photos }, null, 2) + "\n")
+    return
+  }
+  const key = opt._[1] || yesterday()
+  if (!Portrait.VERDICTS.includes(verdict) || !Model.parseDateKey(key)) { process.stderr.write("inkwell-daily: portrait good|bad [YYYY-MM-DD]\n"); process.exit(2) }
+  const side = readJson(path.join(ED_DIR, key + ".json")) || {}
+  if (!side.portrait) { process.stderr.write("inkwell-daily: the " + key + " edition has no picture\n"); process.exit(1) }
+  Portrait.recordRating(dir, { date: key, verdict: verdict, provider: side.portrait.provider, photo: side.portrait.photo })
+  process.stdout.write("Noted: " + verdict + " for " + key + " (" + side.portrait.provider + ", " + side.portrait.photo + ")\n")
+}
+
 async function build(opt, cfg) {
   const key = opt.date || yesterday()
   if (!Model.parseDateKey(key)) { process.stderr.write("inkwell-daily: bad --date " + key + "\n"); process.exit(2) }
@@ -147,7 +199,9 @@ async function build(opt, cfg) {
   const index = Model.parseIndex(fs.existsSync(indexFile) ? fs.readFileSync(indexFile, "utf8") : "")
   const g = gather(key, opt, cfg)
   const log = m => process.stderr.write("inkwell-daily: " + m + "\n")
-  g.extras = await S.collectAll(S.loadPlugins(cfg, DATA, log), { key: key, from: Model.shiftDateKey(key, -6), to: key, net: !opt.offline, dataDir: DATA }, cfg)
+  const sources = S.loadPlugins(cfg, DATA, log)
+  g.proInstalled = S.hasPro(sources) || !!(cfg.developer && cfg.developer.pro)
+  g.extras = await S.collectAll(sources, { key: key, from: Model.shiftDateKey(key, -6), to: key, net: !opt.offline, dataDir: DATA }, cfg)
   g.index = index
   g.previous = readJson(path.join(edDir, Model.shiftDateKey(key, -1) + ".json"))
 
@@ -162,6 +216,12 @@ async function build(opt, cfg) {
     g.prose = Model.cleanProse(proseRaw, facts)
     ed = compose(g)
   }
+
+  // The headshot portrait is parked; the front page carries the day's
+  // picture and quote instead.
+  const heads = Inspiration.settings(cfg)
+  g.portrait = g.proInstalled && heads.enabled ? await Inspiration.picture(key, heads.generator) : null
+  if (g.portrait && g.portrait.problem) { log("picture: " + g.portrait.problem + " The front page goes without one."); g.portrait = null }
 
   const sideFile = path.join(edDir, key + ".json")
   const side = readJson(sideFile) || {}
@@ -183,7 +243,8 @@ async function build(opt, cfg) {
   writeAtomic(sideFile, JSON.stringify({
     date: key, firstBuiltAt: side.firstBuiltAt || now, builtAt: now, hash: hash, late: late,
     forecastTomorrow: wx ? { max: wx.max, min: wx.min, precip: wx.precip, code: wx.code } : null,
-    headline: ed.lead.headline, prose: g.prose || null
+    headline: ed.lead.headline, prose: g.prose || null,
+    portrait: g.portrait ? { provider: g.portrait.provider, photo: g.portrait.scene, quote: g.portrait.quote } : null
   }, null, 2) + "\n")
 
   const entry = { date: key, title: ed.title, headline: ed.lead.headline, kicker: ed.lead.kicker, deck: ed.lead.deck || "", minutes: g.minutes, weekend: ed.weekend, late: !!late, builtAt: now, path: file }
@@ -338,10 +399,40 @@ function markRead(key) {
 
 // `theme` with no id lists the milestone themes and where the next one sits.
 // With an id, it sets the paper's theme if the habit has earned it.
+// `restyle [--date D]`: the newest (or that) edition, and the bound volume,
+// in today's theme and font, in place. Settings calls it after a theme or
+// font change, so the paper changes at once instead of after a full build.
+// `restyle --preview --theme T --font F` writes nothing: it only answers
+// with the tokens, so the Paper window can show a theme before it's applied.
+function restyleCommand(opt, cfg) {
+  if (opt.preview) {
+    const theme = C.desktop()
+    const reads = Model.readTotal(loadReads().days, Model.dateKeyFromDate(new Date()))
+    const chosen = Themes.resolve(opt.theme || cfg.theme, unlockMornings(reads, cfg), theme.palette)
+    const look = opt.look || cfg.style
+    process.stdout.write(JSON.stringify({ theme: chosen.id, font: Fonts.get(opt.font || cfg.font).id, look: look || "table", style: styleTokens(chosen.palette || theme.palette, opt.font || cfg.font, look) }) + "\n")
+    return
+  }
+  const index = loadIndex()
+  const key = opt.date || (index[0] && index[0].date)
+  const file = key && path.join(ED_DIR, key + ".html")
+  let html = ""
+  try { html = fs.readFileSync(file, "utf8") } catch (e) {}
+  if (!html) { process.stderr.write("inkwell-daily: no edition to restyle\n"); process.exit(1) }
+  const theme = C.desktop()
+  const chosen = Themes.resolve(cfg.theme, unlockMornings(Model.readTotal(loadReads().days, key), cfg), theme.palette)
+  const out = restyle(html, chosen.palette || theme.palette, cfg.font, cfg.style)
+  if (!out) { process.stderr.write("inkwell-daily: that edition is too old to restyle; build it again\n"); process.exit(1) }
+  writeAtomic(file, out)
+  writeAtomic(path.join(ED_DIR, "index.html"), renderIndex(index, chosen.palette || theme.palette, C.reader().name, Fonts.get(cfg.font)))
+  // The tokens let an open Paper window take the change without reloading.
+  process.stdout.write(JSON.stringify({ date: key, path: file, theme: chosen.id, font: cfg.font, look: cfg.style || "table", style: styleTokens(chosen.palette || theme.palette, cfg.font, cfg.style) }) + "\n")
+}
+
 function themeCommand(opt, cfg) {
   const ledger = loadReads()
   const today = Model.dateKeyFromDate(new Date())
-  const mornings = Model.readTotal(ledger.days, today)
+  const mornings = unlockMornings(Model.readTotal(ledger.days, today), cfg)
   const picked = Themes.resolve(cfg.theme, mornings, null)
   const want = opt._[0]
   if (want) {
@@ -379,6 +470,22 @@ function themeCommand(opt, cfg) {
 
 // `font` lists the free Google Font pairings; with an id it sets the next
 // edition's type. No unlocking here: every pairing is free.
+// `style [flat|table]`: a flat page, or the paper lying on a table.
+function styleCommand(opt, cfg) {
+  const want = opt._[0]
+  if (!want) {
+    for (const id of STYLES) process.stdout.write(id.padEnd(8) + (id === "table" ? "On the table: paper grain, a fold and shadows" : "Flat: the page as it's always been") + ((cfg.style || "table") === id ? " · in use" : "") + "\n")
+    return
+  }
+  if (!STYLES.includes(want)) { process.stderr.write('No style "' + want + '". Try: ' + STYLES.join(", ") + "\n"); process.exit(2) }
+  const file = P.configFile()
+  const saved = readJson(file) || {}
+  privately(DATA)
+  fs.mkdirSync(DATA, { recursive: true })
+  writeAtomic(file, JSON.stringify(Object.assign({}, P.DEFAULTS, saved, { style: want }), null, 2) + "\n")
+  process.stdout.write("Style set to " + want + ".\n")
+}
+
 function fontCommand(opt, cfg) {
   const current = Fonts.get(cfg.font)
   const want = opt._[0]
@@ -491,7 +598,10 @@ async function main() {
       const file = key && path.join(ED_DIR, key + ".html")
       if (!file || !fs.existsSync(file)) { process.stderr.write("No edition yet. Set one with: inkwell-daily build\n"); process.exit(1) }
       markRead(key)
-      openPath(file)
+      // The menu bar app shows the paper in its own window; it only needs
+      // the morning marked and the path.
+      if (opt["no-browser"]) process.stdout.write(file + "\n")
+      else openPath(file)
       break
     }
     case "index": {
@@ -503,8 +613,11 @@ async function main() {
     case "latest": { const e = loadIndex()[0]; if (e) process.stdout.write(path.join(ED_DIR, e.date + ".html") + "\n"); break }
     case "status": status(); break
     case "theme": themeCommand(opt, cfg); break
+    case "restyle": restyleCommand(opt, P.readConfig()); break
+    case "style": styleCommand(opt, cfg); break
     case "font": fontCommand(opt, cfg); break
     case "trend": trendCommand(opt); break
+    case "portrait": await portraitCommand(opt, cfg); break
     case "publish": publish(opt); break
     case "web": { const s = readJson(path.join(DATA, "web", "state.json")) || {}; const u = Model.artifactUrl(s.url); if (u) process.stdout.write(u + "\n"); break }
     case "install": install(opt, cfg); break

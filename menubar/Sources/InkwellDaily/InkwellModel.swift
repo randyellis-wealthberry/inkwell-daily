@@ -3,6 +3,7 @@ import Foundation
 import InkwellCore
 import Observation
 import ServiceManagement
+import UniformTypeIdentifiers
 
 struct InkwellTheme: Identifiable, Sendable, Hashable {
     let id: String
@@ -19,6 +20,33 @@ struct InkwellTheme: Identifiable, Sendable, Hashable {
     ]
 }
 
+/// The paper's looks: `inkwell-daily style`.
+struct PaperLook: Identifiable, Sendable, Hashable {
+    let id: String
+    let name: String
+
+    static let all: [PaperLook] = [
+        .init(id: "table", name: "On the table"),
+        .init(id: "flat", name: "Flat"),
+    ]
+}
+
+/// The type pairings `inkwell-daily font` knows; lib/fonts.js has the faces.
+struct InkwellFont: Identifiable, Sendable, Hashable {
+    let id: String
+    let name: String
+
+    static let all: [InkwellFont] = [
+        .init(id: "inkwell", name: "Inkwell"),
+        .init(id: "broadsheet", name: "Broadsheet"),
+        .init(id: "gazette", name: "Gazette"),
+        .init(id: "modern", name: "Modern"),
+        .init(id: "bodoni", name: "Bodoni"),
+        .init(id: "weekend", name: "Weekend"),
+        .init(id: "literary", name: "Literary"),
+    ]
+}
+
 @Observable
 @MainActor
 final class InkwellModel {
@@ -30,12 +58,34 @@ final class InkwellModel {
     var hour = 5
     var notify = true
     var theme = "auto"
+    var font = "inkwell"
+    var isApplying = false
+    /// What the Paper window is previewing; it equals theme and font until
+    /// you pick something there, and goes back to them on Apply or Revert.
+    var look = "table"
+    var draftTheme = "auto"
+    var draftFont = "inkwell"
+    var draftLook = "table"
+    var hasDraft: Bool { draftTheme != theme || draftFont != font || draftLook != look }
+    /// Mornings still to go, by theme id; a theme missing here is unlocked.
+    var themeLocks: [String: Int] = [:]
     var launchAtLogin = false
+    var headlines = Headlines()
+    var headshotCount = InkwellPaths.headshotCount()
+    var generatorTest: GeneratorTest = .idle
+    var hasServiceKey = false
     var loginItemError: String?
 
     @ObservationIgnored private var cli: InkwellCLI?
     @ObservationIgnored private var refreshTask: Task<Void, Never>?
     @ObservationIgnored var onStatusChange: (() -> Void)?
+    @ObservationIgnored private var hasDraftInFlight = false
+    @ObservationIgnored private lazy var paper: PaperWindow = {
+        let window = PaperWindow(bar: PaperBar(model: self))
+        window.onRate = { [weak self] rating in self?.ratePortrait(rating) }
+        window.onClose = { [weak self] in self?.paperClosed() }
+        return window
+    }()
 
     init() {
         let url = Self.resolveCLI()
@@ -73,6 +123,13 @@ final class InkwellModel {
         if let value = config["theme"] as? String, !value.isEmpty {
             theme = value
         }
+        if let value = config["font"] as? String, !value.isEmpty {
+            font = value
+        }
+        look = (config["style"] as? String).flatMap { PaperLook.all.map(\.id).contains($0) ? $0 : nil } ?? "table"
+        if !hasDraftInFlight { draftTheme = theme; draftFont = font; draftLook = look }
+        headlines = Headlines(config["headlines"] as? [String: Any] ?? [:])
+        hasServiceKey = !headlines.service.isEmpty && Keychain.has(headlines.service)
     }
 
     func refreshLaunchAtLogin() {
@@ -121,8 +178,26 @@ final class InkwellModel {
         }
     }
 
-    func openPaper() {
+    // The paper opens in its own window; the CLI marks the morning read and
+    // says which file to show.
+    func openPaper(_ date: String? = nil) {
+        run(["open", "--no-browser"] + (date.map { [$0] } ?? [])) { result in
+            self.refresh()
+            if case .success(let output) = result, let file = Self.path(output) { self.paper.show(file) }
+        }
+    }
+
+    func openInBrowser() {
         run(["open"]) { _ in self.refresh() }
+    }
+
+    private static func path(_ output: String) -> URL? {
+        let line = output.trimmingCharacters(in: .whitespacesAndNewlines)
+        return line.hasPrefix("/") && line.hasSuffix(".html") ? URL(fileURLWithPath: line) : nil
+    }
+
+    private var latestFile: URL? {
+        status.latest.map { InkwellPaths.dataDirectory().appendingPathComponent("editions/\($0.date).html") }
     }
 
     func buildNow() {
@@ -131,10 +206,9 @@ final class InkwellModel {
         lastError = nil
         run(["build"]) { result in
             self.isBuilding = false
-            if case .failure = result {
-                // lastError is already set by run.
-            }
+            // On failure, lastError is already set by run.
             self.refresh()
+            if case .success = result { self.paper.reload(self.latestFile) }
         }
     }
 
@@ -142,11 +216,165 @@ final class InkwellModel {
         run(["index"])
     }
 
+    // Which themes are earned yet, from `inkwell-daily theme --json`.
+    func refreshThemeLocks() {
+        run(["theme", "--json"]) { result in
+            guard case .success(let output) = result, let data = output.data(using: .utf8),
+                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let themes = json["themes"] as? [[String: Any]] else { return }
+            var locks: [String: Int] = [:]
+            for t in themes where (t["unlocked"] as? Bool) == false {
+                if let id = t["id"] as? String { locks[id] = (t["remaining"] as? NSNumber)?.intValue ?? 0 }
+            }
+            self.themeLocks = locks
+        }
+    }
+
+    // Like the font: set it, then reset the newest edition in it and open it.
     func setTheme(_ id: String) {
-        guard id != theme else { return }
+        guard id != theme, !isBuilding, !isApplying, themeLocks[id] == nil else { return }
         theme = id
-        run(["theme", id]) { _ in
+        run(["theme", id]) { result in
             self.refreshConfig()
+            guard case .success = result else { return }
+            self.restyleLatest()
+        }
+    }
+
+    // A new pairing is set, then the newest edition is reset in it and opened,
+    // so the change shows at once instead of tomorrow morning.
+    func setFont(_ id: String) {
+        guard id != font, !isBuilding, !isApplying else { return }
+        font = id
+        run(["font", id]) { result in
+            self.refreshConfig()
+            guard case .success = result else { return }
+            self.restyleLatest()
+        }
+    }
+
+    // MARK: Previewing in the Paper window
+
+    func previewTheme(_ id: String) {
+        guard themeLocks[id] == nil else { return }
+        draftTheme = id
+        hasDraftInFlight = hasDraft
+        showDraft()
+    }
+
+    func previewFont(_ id: String) {
+        draftFont = id
+        hasDraftInFlight = hasDraft
+        showDraft()
+    }
+
+    func previewLook(_ id: String) {
+        draftLook = id
+        hasDraftInFlight = hasDraft
+        showDraft()
+    }
+
+    // Settings sets the look at once, like the theme and font.
+    func setLook(_ id: String) {
+        guard id != look, !isBuilding, !isApplying else { return }
+        look = id
+        draftLook = id
+        run(["style", id]) { result in
+            self.refreshConfig()
+            guard case .success = result else { return }
+            self.restyleLatest()
+        }
+    }
+
+    func revertDraft() {
+        draftTheme = theme
+        draftFont = font
+        draftLook = look
+        hasDraftInFlight = false
+        showDraft()
+    }
+
+    // Saves the previewed theme and font, then restyles the file to match.
+    func applyDraft() {
+        guard hasDraft, !isApplying else { return }
+        var steps: [[String]] = []
+        if draftTheme != theme { steps.append(["theme", draftTheme]) }
+        if draftFont != font { steps.append(["font", draftFont]) }
+        if draftLook != look { steps.append(["style", draftLook]) }
+        isApplying = true
+        save(steps)
+    }
+
+    private func save(_ steps: [[String]]) {
+        guard let step = steps.first else {
+            hasDraftInFlight = false
+            refreshConfig()
+            isApplying = false
+            restyleLatest()
+            return
+        }
+        run(step) { result in
+            guard case .success = result else {
+                // lastError says why; the preview stays so nothing is lost.
+                self.isApplying = false
+                return
+            }
+            self.save(Array(steps.dropFirst()))
+        }
+    }
+
+    // A preview nobody applied doesn't outlive the window.
+    func paperClosed() {
+        draftTheme = theme
+        draftFont = font
+        draftLook = look
+        hasDraftInFlight = false
+    }
+
+    private func showDraft() {
+        run(["restyle", "--preview", "--theme", draftTheme, "--font", draftFont, "--look", draftLook]) { result in
+            guard case .success(let output) = result, let style = Self.style(output) else { return }
+            self.paper.apply(style: style)
+        }
+    }
+
+    private static func style(_ output: String) -> [String: Any]? {
+        guard let data = output.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
+        return json["style"] as? [String: Any]
+    }
+
+    // A theme or font only changes colours and type, so the newest edition is
+    // restyled in place (a fraction of a second) rather than set again.
+    func restyleLatest() {
+        isApplying = true
+        run(["restyle"]) { result in
+            self.isApplying = false
+            switch result {
+            case .success(let output):
+                // An open paper takes the new style without reloading.
+                if self.paper.isVisible, Self.style(output) != nil {
+                    // The file now carries today's whole stylesheet; a reload
+                    // of a local page is instant and picks up any new look.
+                    self.paper.reload(nil)
+                } else {
+                    self.openPaper(self.status.latest?.date)
+                }
+            case .failure: self.resetLatest() // an edition from before restyle: set it again
+            }
+        }
+    }
+
+    func resetLatest() {
+        guard !isBuilding else { return }
+        isBuilding = true
+        var args = ["build"]
+        if let date = status.latest?.date { args += ["--date", date] }
+        run(args) { result in
+            self.isBuilding = false
+            self.refresh()
+            guard case .success = result else { return }
+            if self.paper.isVisible { self.paper.reload(self.latestFile) } else { self.openPaper(self.status.latest?.date) }
         }
     }
 
@@ -199,6 +427,124 @@ final class InkwellModel {
         lastError = nil
     }
 
+    // Make headlines: the headshots, and any image generator the reader picks.
+    func setHeadlines(_ value: Headlines) {
+        headlines = value
+        do {
+            try ConfigStore.set("headlines", value.json, at: InkwellPaths.configFile())
+        } catch {
+            lastError = error.localizedDescription
+            refreshConfig()
+        }
+    }
+
+    func ratePortrait(_ rating: PortraitRating) {
+        run(rating.arguments)
+    }
+
+    // One run of the generator on a headshot, opened in Preview.
+    func testGenerator() {
+        generatorTest = .running
+        run(["portrait", "test"]) { result in
+            switch result {
+            case .success(let output):
+                guard let data = output.data(using: .utf8),
+                      let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                      let path = json["path"] as? String else {
+                    self.generatorTest = .failed("This inkwell-daily is too old for Test Generator. Choose a newer one under Command.")
+                    return
+                }
+                self.generatorTest = .passed(json["photo"] as? String ?? "")
+                NSWorkspace.shared.open(URL(fileURLWithPath: path))
+            case .failure:
+                // The CLI says why on stderr, which the runner hands back.
+                self.generatorTest = .failed(self.lastError ?? "The generator didn't make a picture.")
+                self.lastError = nil
+            }
+        }
+    }
+
+    // A new service starts without consent: it's a new place for your photos.
+    func setService(_ id: String) {
+        guard id != headlines.service else { return }
+        var next = headlines
+        next.service = id
+        next.model = ""
+        next.consent = false
+        generatorTest = .idle
+        hasServiceKey = Keychain.has(id)
+        setHeadlines(next)
+    }
+
+    func saveServiceKey(_ key: String) {
+        do {
+            try Keychain.set(headlines.service, key: key)
+            hasServiceKey = Keychain.has(headlines.service)
+            generatorTest = .idle
+            lastError = nil
+        } catch {
+            lastError = error.localizedDescription
+        }
+    }
+
+    func removeServiceKey() {
+        Keychain.remove(headlines.service)
+        hasServiceKey = false
+    }
+
+    func chooseGenerator() {
+        let panel = NSOpenPanel()
+        panel.message = "Choose an image generator: any command that takes a photo and an output path"
+        panel.prompt = "Choose"
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        guard FileManager.default.isExecutableFile(atPath: url.path) else {
+            lastError = "\(url.lastPathComponent) isn't executable. Run chmod +x on it first."
+            return
+        }
+        var next = headlines
+        next.service = "command"
+        next.generator = url.path
+        next.consent = false
+        generatorTest = .idle
+        setHeadlines(next)
+    }
+
+    func addHeadshots() {
+        let panel = NSOpenPanel()
+        panel.message = "Add headshots. Start a file's name with triumphant, steady, quiet or rough to match a day's mood."
+        panel.prompt = "Add"
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = true
+        panel.allowedContentTypes = [.jpeg, .png, .webP]
+
+        guard panel.runModal() == .OK else { return }
+        let folder = InkwellPaths.portraitsDirectory()
+        do {
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+            for url in panel.urls {
+                let target = folder.appendingPathComponent(url.lastPathComponent)
+                if FileManager.default.fileExists(atPath: target.path) { try FileManager.default.removeItem(at: target) }
+                try FileManager.default.copyItem(at: url, to: target)
+                try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: target.path)
+            }
+            lastError = nil
+        } catch {
+            lastError = error.localizedDescription
+        }
+        headshotCount = InkwellPaths.headshotCount()
+    }
+
+    func revealHeadshots() {
+        let folder = InkwellPaths.portraitsDirectory()
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+        NSWorkspace.shared.activateFileViewerSelecting([folder])
+    }
+
     func openConfig() {
         NSWorkspace.shared.open(InkwellPaths.configFile())
     }
@@ -206,4 +552,56 @@ final class InkwellModel {
     func revealData() {
         NSWorkspace.shared.activateFileViewerSelecting([InkwellPaths.dataDirectory()])
     }
+}
+
+/// config.json's "headlines": whether the paper makes them, and which
+/// generator draws the portrait. Consent resets whenever the generator changes.
+struct Headlines: Equatable {
+    var enabled = true
+    var service = ""
+    var model = ""
+    var generator = ""
+    var consent = false
+
+    init() {}
+
+    init(_ json: [String: Any]) {
+        enabled = json["enabled"] as? Bool ?? true
+        generator = json["generator"] as? String ?? ""
+        service = json["service"] as? String ?? (generator.isEmpty ? "" : "command")
+        model = json["model"] as? String ?? ""
+        consent = json["consent"] as? Bool ?? false
+    }
+
+    var json: [String: Any] {
+        var out: [String: Any] = ["enabled": enabled, "consent": consent]
+        if !service.isEmpty { out["service"] = service }
+        if !model.isEmpty { out["model"] = model }
+        if !generator.isEmpty { out["generator"] = generator }
+        return out
+    }
+}
+
+/// The image services Make headlines can draw with; lib/imagegen.js has the calls.
+struct ImageService: Identifiable, Hashable {
+    let id: String
+    let name: String
+    let modelHint: String
+    let keyHint: String
+
+    static let all: [ImageService] = [
+        .init(id: "", name: "None · plain halftone", modelHint: "", keyHint: ""),
+        .init(id: "openai", name: "OpenAI (GPT Image)", modelHint: "gpt-image-2", keyHint: "sk-…"),
+        .init(id: "recraft", name: "Recraft", modelHint: "Recraft's default", keyHint: "Recraft API token"),
+        .init(id: "higgsfield", name: "Higgsfield", modelHint: "higgsfield/ads-studio/v1.0", keyHint: "KEY_ID:KEY_SECRET"),
+        .init(id: "command", name: "Your own command", modelHint: "", keyHint: ""),
+    ]
+
+    static func find(_ id: String) -> ImageService { all.first { $0.id == id } ?? all[0] }
+}
+
+enum GeneratorTest: Equatable {
+    case idle, running
+    case passed(String)
+    case failed(String)
 }

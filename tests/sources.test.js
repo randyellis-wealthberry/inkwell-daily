@@ -28,6 +28,12 @@ test("a source that throws becomes a note, and a disabled one is skipped", async
   assert.equal(out.sections[0].note, "no auth")
 })
 
+test("an installed Inkwell Pro is recognized among the sources", () => {
+  assert.equal(S.hasPro([{ id: "gmail", plugin: S.PRO_PLUGIN }]), true)
+  assert.equal(S.hasPro([{ id: "demo", plugin: "/tmp/demo.js" }]), false)
+  assert.equal(S.hasPro([]), false)
+})
+
 test("plugins named in config load from an absolute path", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "inkwell-plugin-"))
   const file = path.join(dir, "p.js")

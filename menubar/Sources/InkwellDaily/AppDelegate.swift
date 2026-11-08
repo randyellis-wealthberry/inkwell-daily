@@ -30,10 +30,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         rebuildMenu()
     }
 
+    // The paper's good / bad buttons arrive as inkwell-daily:// links.
+    func application(_ application: NSApplication, open urls: [URL]) {
+        for url in urls {
+            if let rating = PortraitRating(url: url) { model.ratePortrait(rating) }
+        }
+    }
+
     func menuWillOpen(_ menu: NSMenu) {
         model.refresh()
         model.refreshConfig()
         model.refreshLaunchAtLogin()
+        model.refreshThemeLocks()
         rebuildMenu()
     }
 
@@ -69,6 +77,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         open.isEnabled = model.status.latest != nil && !model.isBuilding
         menu.addItem(open)
 
+        let browser = NSMenuItem(title: "Open in Browser", action: #selector(openInBrowser), keyEquivalent: "")
+        browser.target = self
+        browser.isEnabled = open.isEnabled
+        menu.addItem(browser)
+
         let build = NSMenuItem(
             title: model.isBuilding ? "Setting Yesterday's Edition…" : "Set Yesterday's Edition Now",
             action: #selector(buildNow),
@@ -88,8 +101,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let themeItem = NSMenuItem(title: "Theme", action: nil, keyEquivalent: "")
         let themeMenu = NSMenu(title: "Theme")
         for theme in InkwellTheme.all {
-            let item = NSMenuItem(title: theme.name, action: #selector(setTheme(_:)), keyEquivalent: "")
+            let left = model.themeLocks[theme.id]
+            let title = left.map { "\(theme.name) · \($0) more \($0 == 1 ? "morning" : "mornings")" } ?? theme.name
+            let item = NSMenuItem(title: title, action: left == nil ? #selector(setTheme(_:)) : nil, keyEquivalent: "")
             item.target = self
+            item.isEnabled = left == nil
             item.representedObject = theme.id
             item.state = model.theme == theme.id ? .on : .off
             themeMenu.addItem(item)
@@ -202,6 +218,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func openPaper() {
         model.openPaper()
         rebuildMenu()
+    }
+
+    @objc private func openInBrowser() {
+        model.openInBrowser()
     }
 
     @objc private func buildNow() {
