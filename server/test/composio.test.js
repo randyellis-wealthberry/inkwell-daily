@@ -85,13 +85,13 @@ test("read-only auth configs are passed to the session", () => {
   })
   assert.deepEqual(cfg.authConfigs, { gmail: "ac_gmail", slack: "ac_slack" })
   assert.equal(cfg.sandbox.enable, false)
-  assert.deepEqual(cfg.toolkits.enable.slice().sort(), ["basecamp", "gmail", "googlecalendar", "notion", "slack"])
+  assert.deepEqual(cfg.toolkits.enable.slice().sort(), ["basecamp", "github", "gmail", "googlecalendar", "googledrive", "linear", "notion", "slack"])
 })
 
 test("with no auth configs the session sends none, and every toolkit is missing one", () => {
   const cfg = sessionConfig({})
   assert.equal(cfg.authConfigs, undefined)
-  assert.deepEqual(missingAuthConfigs({}).sort(), ["basecamp", "gmail", "googlecalendar", "notion", "slack"])
+  assert.deepEqual(missingAuthConfigs({}).sort(), ["basecamp", "github", "gmail", "googlecalendar", "googledrive", "linear", "notion", "slack"])
 })
 
 test("strict mode refuses to create a session that would use managed scopes", async () => {
@@ -112,7 +112,10 @@ test("strict mode passes when every toolkit has a read-only config", async () =>
     COMPOSIO_AUTH_CONFIG_GOOGLECALENDAR: "b",
     COMPOSIO_AUTH_CONFIG_SLACK: "c",
     COMPOSIO_AUTH_CONFIG_NOTION: "d",
-    COMPOSIO_AUTH_CONFIG_BASECAMP: "e"
+    COMPOSIO_AUTH_CONFIG_BASECAMP: "e",
+    COMPOSIO_AUTH_CONFIG_GITHUB: "f",
+    COMPOSIO_AUTH_CONFIG_LINEAR: "g",
+    COMPOSIO_AUTH_CONFIG_GOOGLEDRIVE: "h"
   }
   const c = create({ composio: fake, requireCustomAuth: true, env })
   await c.sessionFor("ink_a")

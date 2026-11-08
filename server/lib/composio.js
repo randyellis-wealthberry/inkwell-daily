@@ -8,13 +8,14 @@
 
 "use strict"
 
+import { normalize, withState } from "./integrations.js"
+import { READERS, READER_TOOLS, group } from "./readers.js"
+
 // A session carries the user's identity and connection state, and it is cheap
 // to recreate. Its lifetime is therefore the longest a revoked license could
 // keep reading, which is why it is ten minutes and not a day: revocation works
 // on every instance without a shared store, and one morning run still creates
 // a single session.
-import { normalize, withState } from "./integrations.js"
-
 const TTL_MS = 10 * 60 * 1000
 
 // Verified against docs.composio.dev/toolkits/<toolkit> — see server/README.md
@@ -28,6 +29,10 @@ const TOOLS = {
   basecamp: { enable: ["BASECAMP_GET_MY_ASSIGNMENTS"] }
 }
 
+// Everything the session may call: the five desks, plus whichever integrations
+// have a section reader. A tool outside this map cannot run.
+const TOOL_MAP = Object.assign({}, TOOLS, READER_TOOLS)
+
 // The tool allowlist stops us calling a writing tool. It does not narrow the
 // OAuth grant: managed auth asks for Composio's own scopes, and Gmail's may
 // include modify. Point these at auth configs created with read-only scopes so
@@ -37,7 +42,10 @@ const AUTH_ENV = {
   googlecalendar: "COMPOSIO_AUTH_CONFIG_GOOGLECALENDAR",
   slack: "COMPOSIO_AUTH_CONFIG_SLACK",
   notion: "COMPOSIO_AUTH_CONFIG_NOTION",
-  basecamp: "COMPOSIO_AUTH_CONFIG_BASECAMP"
+  basecamp: "COMPOSIO_AUTH_CONFIG_BASECAMP",
+  github: "COMPOSIO_AUTH_CONFIG_GITHUB",
+  linear: "COMPOSIO_AUTH_CONFIG_LINEAR",
+  googledrive: "COMPOSIO_AUTH_CONFIG_GOOGLEDRIVE"
 }
 
 function sessionConfig(env) {
@@ -48,8 +56,8 @@ function sessionConfig(env) {
     if (id) authConfigs[toolkit] = id
   }
   const config = {
-    toolkits: { enable: Object.keys(TOOLS) },
-    tools: TOOLS,
+    toolkits: { enable: Object.keys(TOOL_MAP) },
+    tools: TOOL_MAP,
     // Belt and braces: even if a slug were mis-tagged in the enable lists, a
     // deleting tool would not be reachable.
     tags: { disable: ["destructiveHint"] },
@@ -64,7 +72,7 @@ function sessionConfig(env) {
 // Toolkits that would fall back to managed (possibly wider) scopes.
 function missingAuthConfigs(env) {
   const set = sessionConfig(env).authConfigs || {}
-  return Object.keys(TOOLS).filter(t => !set[t])
+  return Object.keys(TOOL_MAP).filter(t => !set[t])
 }
 
 // Lazy so the shaping tests and the plugin tests run without @composio/core
@@ -154,8 +162,51 @@ function create(opts) {
     return session
   }
 
+  // A single tool call through the reader session.
+  async function run(userId, slug, args) {
+    return withSession(userId, s => s.execute(slug, args))
+  }
+
+  // Toolkit slugs the user has actually authorized. Used to decide between a
+  // desk and a Connect button, and to skip readers with no account.
+  async function connectedSlugs(userId) {
+    const out = new Set()
+    try {
+      const page = await withSession(userId, s => s.toolkits())
+      for (const item of (page && page.items) || []) {
+        const slug = String(item && item.slug || "").toLowerCase()
+        const active = item && item.connection && (item.connection.isActive === true || item.connection.is_active === true)
+        if (slug && active) out.add(slug)
+      }
+    } catch (e) {
+      if (isConfigError(e)) throw e
+      // An unknown connection state reads as "not connected", which shows a
+      // Connect button rather than pretending the desk is empty.
+    }
+    return out
+  }
+
   return {
     sessionFor,
+
+    // One grouped fold per section, from whichever readers are connected and
+    // have something to say. A single failing integration is dropped, not fatal.
+    async sections(userId, ctx) {
+      const on = await connectedSlugs(userId)
+      const parts = []
+      for (const reader of READERS) {
+        if (!on.has(reader.toolkit)) continue
+        try {
+          const shaped = await reader.read((slug, args) => run(userId, slug, args), ctx)
+          if (shaped && shaped.items && shaped.items.length) {
+            parts.push(Object.assign({ section: reader.section, app: reader.app, id: reader.id }, shaped))
+          }
+        } catch (e) {
+          // A reader that fails loses its section, never the paper.
+        }
+      }
+      return group(parts, ctx)
+    },
 
     // The 25 most popular integrations and whether this reader has each one.
     async integrations(userId, limit) {
@@ -167,31 +218,13 @@ function create(opts) {
     },
 
     async execute(userId, slug, args) {
-      return withSession(userId, s => s.execute(slug, args))
+      return run(userId, slug, args)
     },
 
-    // Toolkit slugs the user has actually authorized. Used to decide between a
-    // desk and a Connect button, without attempting a tool call that would 401.
-    async connected(userId) {
-      const out = new Set()
-      try {
-        const page = await withSession(userId, s => s.toolkits())
-        for (const item of (page && page.items) || []) {
-          const slug = String(item && item.slug || "").toLowerCase()
-          const active = item && item.connection && (item.connection.isActive === true || item.connection.is_active === true)
-          if (slug && active) out.add(slug)
-        }
-      } catch (e) {
-        if (isConfigError(e)) throw e
-        // An unknown connection state reads as "not connected", which shows a
-        // Connect button rather than pretending the desk is empty.
-      }
-      return out
-    },
+    // Toolkit slugs the reader has actually authorized.
+    connected: connectedSlugs,
 
-    // A connect link can be for any toolkit, not only the five desks, so it
-    // gets its own short-lived session scoped to that one toolkit. The
-    // connection belongs to the user, not to the session that opened it.
+    // Composio returns the provider's own URL; we never build an OAuth flow.
     async connectLink(userId, toolkit) {
       try {
         const base = sessionConfig(env)

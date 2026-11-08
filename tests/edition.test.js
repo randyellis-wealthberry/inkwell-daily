@@ -63,15 +63,23 @@ function deskSet() {
 test("a day of your own work leads the paper", () => {
   const ed = compose(gathering())
   assert.equal(ed.lead.kind, "desk")
-  assert.equal(ed.lead.headline, "1 commit landed in Isobar")
+  assert.equal(ed.lead.headline, "1 commit landed")
   assert.equal(ed.desk, null)
   assert.equal(ed.title, "Ada's Inkwell Daily")
-  assert.match(ed.lead.paragraphs[0], /^At 4:19 pm, in ~\/Work, you asked Claude Code:$/)
+  assert.match(ed.lead.paragraphs[0], /^At 4:19 pm, you asked Claude Code:$/)
   assert.equal(ed.lead.quote.text, "make me a beautiful weather plugin")
   assert.equal(ed.lead.quote.by, "You · 4:19 pm")
   assert.match(ed.lead.paragraphs[1], /^It ran to 2 prompts by 5:02 pm/)
   assert.equal(ed.week.days.length, 7)
   assert.equal(ed.week.days[6].count, 2)
+})
+
+test("with several repos, the session says where it ran", () => {
+  const g = gathering()
+  g.desk = g.desk.concat([{ id: "other.isobar", name: "Other", tracked: true, dirty: false, commits: [{ at: at("2026-10-15", 18, 0), key: "2026-10-15", subject: "Other: a change" }] }])
+  const ed = compose(g)
+  assert.equal(ed.lead.headline, "2 commits landed in Isobar and Other")
+  assert.match(ed.lead.paragraphs[0], /^At 4:19 pm, in ~\/Work, you asked Claude Code:$/)
 })
 
 test("the prompt is a pull quote, not a wall of text", () => {
@@ -125,7 +133,7 @@ test("the integration library is a card per app, and says which are on", () => {
   const palette = Model.parseColors('background = "#1a1b26"\nforeground = "#a9b1d6"\naccent = "#7aa2f7"\nyellow = "#e0af68"')
   const html = renderIntegrations({
     integrations: [
-      { slug: "gmail", name: "Gmail", category: "email", description: "Google's mail.", connected: true },
+      { slug: "gmail", name: "Gmail", category: "email", description: "Gmail is a mail service.", connected: true },
       { slug: "slack", name: "<script>x</script>", category: "chat", description: "Chat.", connected: false, connect: "http://127.0.0.1:8787/connect?t=abc" }
     ]
   }, palette, "Ada", undefined, "2026-11-08")
@@ -134,10 +142,110 @@ test("the integration library is a card per app, and says which are on", () => {
   assert.match(html, /class="int-card off"/)
   assert.match(html, />Enabled</)
   assert.match(html, />Not enabled</)
+  assert.match(html, /A mail service\./, "the blurb loses the name it already sits under")
+  assert.doesNotMatch(html, /Gmail is a mail service/, "no repetition")
   assert.match(html, /class="int-cta" href="http:\/\/127\.0\.0\.1:8787\/connect\?t=abc"/, "a card has a Connect link")
   assert.match(html, /class="int-cta on" href="https:\/\/app\.composio\.dev"[^>]*>Manage →/, "an enabled card has a Manage link")
   assert.match(html, /href="2026-11-08.html"/, "a way back to the paper")
   assert.ok(!html.includes("<script>x"), "a toolkit name is escaped")
+})
+
+test("the library is grouped into pre-cut sections and refreshes itself", () => {
+  const palette = Model.parseColors('background = "#1a1b26"\nforeground = "#a9b1d6"\naccent = "#7aa2f7"\nyellow = "#e0af68"')
+  const html = renderIntegrations({
+    state: "http://127.0.0.1:8787/integrations?t=abc",
+    integrations: [
+      { slug: "gmail", name: "Gmail", category: "email", connected: true },
+      { slug: "slack", name: "Slack", category: "chat", connected: false, connect: "http://x/connect?t=1" },
+      { slug: "linear", name: "Linear", category: "project management", connected: false }
+    ]
+  }, palette, "Ada", undefined, "2026-11-08")
+
+  assert.match(html, /class="lib-head">email</)
+  assert.match(html, /class="lib-head">chat</)
+  assert.match(html, /class="lib-head">project management</)
+  assert.match(html, /data-slug="gmail"/)
+  assert.match(html, /data-state="http:\/\/127\.0\.0\.1:8787\/integrations\?t=abc"/)
+  assert.match(html, /setInterval\(tick, 4000\)/, "the page asks again without a rebuild")
+})
+
+test("a connected integration gets a card in the paper, marked new", () => {
+  const ed = compose(gathering({
+    wireState: { github: { isNew: true } },
+    integrations: {
+      ok: true,
+      integrations: [
+        { slug: "github", name: "GitHub", category: "developer tools", connected: true },
+        { slug: "slack", name: "Slack", category: "chat", connected: false }
+      ]
+    }
+  }))
+  const page = renderEdition(ed)
+
+  assert.equal(ed.wires.length, 1, "only what is connected")
+  assert.match(page, /<h2>The wires<\/h2>/)
+  assert.equal((page.match(/class="wire-card"/g) || []).length, 1)
+  assert.match(page, /wire-body"><b>GitHub<\/b>/)
+  assert.match(page, /class="wire-new" data-slug="github"/)
+  assert.match(page, /localStorage/, "the chip can be dismissed")
+})
+
+test("a tool connected a while ago has no New chip", () => {
+  const ed = compose(gathering({
+    wireState: { github: { isNew: false } },
+    integrations: { ok: true, integrations: [{ slug: "github", name: "GitHub", connected: true }] }
+  }))
+  const page = renderEdition(ed)
+  assert.equal((page.match(/class="wire-card"/g) || []).length, 1)
+  assert.doesNotMatch(page, /class="wire-new"/)
+})
+
+test("no connected integrations means no wires fold", () => {
+  const ed = compose(gathering())
+  assert.equal(ed.wires.length, 0)
+  assert.doesNotMatch(renderEdition(ed), /class="wire-card"/)
+})
+
+test("subpages put a way home at the top, not only at the bottom", () => {
+  const palette = Model.parseColors('background = "#1a1b26"\nforeground = "#a9b1d6"\naccent = "#7aa2f7"\nyellow = "#e0af68"')
+
+  const lib = renderIntegrations({ integrations: [] }, palette, "Ada", undefined, "2026-11-08")
+  assert.ok(lib.indexOf('class="topnav"') > -1 && lib.indexOf('class="topnav"') < lib.indexOf('class="plate"'))
+  assert.match(lib, /href="2026-11-08.html">← Back to the paper/)
+
+  const idx = renderIndex([{ date: "2026-10-14", headline: "Paimio", minutes: 3, weekend: false, late: false }], palette, "Ada")
+  assert.ok(idx.indexOf('class="topnav"') > -1 && idx.indexOf('class="topnav"') < idx.indexOf('class="plate"'))
+  assert.match(idx, /href="2026-10-14.html">← Back to the paper/)
+})
+
+test("a filled section becomes a fold in the paper", () => {
+  const ed = compose(gathering({
+    sections: {
+      ok: true,
+      sections: [{
+        id: "code",
+        title: "The Code Desk",
+        apps: ["GitHub", "Linear"],
+        headline: "2 things waiting",
+        items: [
+          { time: "9:12 AM", app: "GitHub", title: "org/repo", detail: "Fix the ledger", tag: "Review" },
+          { time: "8:40 AM", app: "Linear", title: "ENG-12", detail: "Ship the shelf", tag: "In Progress" }
+        ]
+      }]
+    }
+  }))
+  const page = renderEdition(ed)
+
+  assert.equal(ed.sections.length, 1)
+  assert.match(page, /<h2>The Code Desk<\/h2>/)
+  assert.match(page, /2 things waiting/)
+  assert.match(page, /<b>org\/repo<\/b> — Fix the ledger <em>Review<\/em>/)
+  assert.doesNotMatch(page, /<b>GitHub<\/b>/, "the fold already names the app")
+})
+
+test("no sections, no folds", () => {
+  const page = renderEdition(compose(gathering()))
+  assert.doesNotMatch(page, /class="wires-section"/)
 })
 
 test("the paper links to the library only when it has one", () => {

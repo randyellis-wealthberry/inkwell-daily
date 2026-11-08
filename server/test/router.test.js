@@ -19,6 +19,9 @@ function fake(over) {
       { slug: "gmail", name: "Gmail", category: "email", description: "Mail.", connected: true },
       { slug: "slack", name: "Slack", category: "chat", description: "Chat.", connected: false }
     ]),
+    sections: async () => ([
+      { id: "code", title: "The Code Desk", apps: ["GitHub"], headline: "2 things waiting", items: [{ time: "9:12 AM", app: "GitHub", title: "org/repo", detail: "Fix the ledger", tag: "Review" }], meter: [] }
+    ]),
     forget: () => {}
   }, over || {})
 }
@@ -182,6 +185,29 @@ test("/integrations lists the library with connection state", async () => {
     assert.equal(body.connected, 1)
     assert.equal(body.integrations[0].slug, "gmail")
     assert.equal(body.integrations[1].connected, false)
+    assert.match(body.state, /\/integrations\?t=/, "a token so the page can refresh itself")
+  } finally { await s.close() }
+})
+
+test("the library can refresh itself with its signed token", async () => {
+  const s = await up(fake())
+  try {
+    const body = await (await get(s.base, "/integrations", "key-one")).json()
+    const res = await fetch(body.state)
+    assert.equal(res.status, 200)
+    assert.equal(res.headers.get("access-control-allow-origin"), "*")
+    const j = await res.json()
+    assert.equal(j.ok, true)
+    assert.equal(j.connected, 1)
+    assert.equal(j.integrations.find(i => i.slug === "slack").connected, false)
+  } finally { await s.close() }
+})
+
+test("a bad library token is refused", async () => {
+  const s = await up(fake())
+  try {
+    const res = await fetch(s.base + "/integrations?t=nope")
+    assert.equal(res.status, 403)
   } finally { await s.close() }
 })
 
@@ -204,6 +230,16 @@ test("a bad or expired connect token is refused", async () => {
   try {
     const res = await fetch(s.base + "/connect?t=nope", { redirect: "manual" })
     assert.equal(res.status, 400)
+  } finally { await s.close() }
+})
+
+test("/sections returns the folds the readers filled", async () => {
+  const s = await up(fake())
+  try {
+    const body = await (await get(s.base, "/sections?date=2026-11-07&tz=UTC", "key-one")).json()
+    assert.equal(body.ok, true)
+    assert.equal(body.sections[0].title, "The Code Desk")
+    assert.equal(body.sections[0].items[0].tag, "Review")
   } finally { await s.close() }
 })
 
