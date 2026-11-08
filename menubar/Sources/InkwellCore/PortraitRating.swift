@@ -20,3 +20,16 @@ public struct PortraitRating: Equatable, Sendable {
 
     public var arguments: [String] { ["portrait", verdict, date] }
 }
+
+/// The paper's Share button: inkwell-daily://share?date=2026-11-06. Only a
+/// real date gets through, and it only names a card already on disk.
+public struct ShareRequest: Equatable, Sendable {
+    public let date: String
+
+    public init?(url: URL) {
+        guard url.scheme == "inkwell-daily", url.host == "share",
+              let date = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "date" })?.value,
+              date.range(of: #"^\d{4}-\d{2}-\d{2}$"#, options: .regularExpression) != nil else { return nil }
+        self.date = date
+    }
+}

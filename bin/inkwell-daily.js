@@ -15,7 +15,7 @@ const Model = require("../Model.js")
 const P = require("../lib/platform.js")
 const C = require("../lib/collect.js")
 const { compose, factsText, prosePrompt, clock } = require("../lib/compose.js")
-const { STYLES, renderEdition, renderIndex, restyle, styleTokens, plainText } = require("../lib/render.js")
+const { STYLES, renderEdition, renderIndex, renderShareCard, restyle, styleTokens, plainText } = require("../lib/render.js")
 const { webCopy, fileChanges } = require("../lib/web.js")
 const { LINK_MAX, CACHE_JSON_MAX } = require("../lib/fetch.js")
 const { privately } = require("../lib/private.js")
@@ -239,6 +239,8 @@ async function build(opt, cfg) {
 
   const file = path.join(edDir, key + ".html")
   writeAtomic(file, html)
+  // The share card beside it; the app snapshots it when Share is pressed.
+  writeAtomic(path.join(edDir, key + "-share.html"), renderShareCard(ed))
   const wx = g.weather && g.weather.raw ? Model.weatherDay(g.weather.raw, Model.shiftDateKey(key, 1)) : null
   writeAtomic(sideFile, JSON.stringify({
     date: key, firstBuiltAt: side.firstBuiltAt || now, builtAt: now, hash: hash, late: late,
@@ -424,6 +426,8 @@ function restyleCommand(opt, cfg) {
   const out = restyle(html, chosen.palette || theme.palette, cfg.font, cfg.style)
   if (!out) { process.stderr.write("inkwell-daily: that edition is too old to restyle; build it again\n"); process.exit(1) }
   writeAtomic(file, out)
+  const card = path.join(ED_DIR, key + "-share.html")
+  try { const c = restyle(fs.readFileSync(card, "utf8"), chosen.palette || theme.palette, cfg.font, cfg.style); if (c) writeAtomic(card, c) } catch (e) {}
   writeAtomic(path.join(ED_DIR, "index.html"), renderIndex(index, chosen.palette || theme.palette, C.reader().name, Fonts.get(cfg.font)))
   // The tokens let an open Paper window take the change without reloading.
   process.stdout.write(JSON.stringify({ date: key, path: file, theme: chosen.id, font: cfg.font, look: cfg.style || "table", style: styleTokens(chosen.palette || theme.palette, cfg.font, cfg.style) }) + "\n")

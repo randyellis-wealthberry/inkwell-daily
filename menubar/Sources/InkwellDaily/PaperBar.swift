@@ -42,6 +42,12 @@ struct PaperBar: View {
                 Button("Revert") { model.revertDraft() }
             }
 
+            Button {
+                model.shareLatest()
+            } label: {
+                Label("Share", systemImage: "square.and.arrow.up")
+            }
+
             Button("Apply Theme") { model.applyDraft() }
                 .buttonStyle(.borderedProminent)
                 .keyboardShortcut(.defaultAction)

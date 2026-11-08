@@ -14,6 +14,7 @@ final class PaperWindow: NSObject, WKNavigationDelegate, NSWindowDelegate {
     private var current: URL?
     var onRate: ((PortraitRating) -> Void)?
     var onClose: (() -> Void)?
+    var onShare: ((ShareRequest) -> Void)?
 
     init(bar: PaperBar) {
         let config = WKWebViewConfiguration()
@@ -94,6 +95,7 @@ final class PaperWindow: NSObject, WKNavigationDelegate, NSWindowDelegate {
         case "inkwell-daily":
             // The rating buttons; the same strict check as the URL scheme.
             if let rating = PortraitRating(url: url) { onRate?(rating) }
+            if let request = ShareRequest(url: url) { onShare?(request) }
             decisionHandler(.cancel)
         case "file":
             // Only the editions folder; anything else goes nowhere.

@@ -84,6 +84,7 @@ final class InkwellModel {
         let window = PaperWindow(bar: PaperBar(model: self))
         window.onRate = { [weak self] rating in self?.ratePortrait(rating) }
         window.onClose = { [weak self] in self?.paperClosed() }
+        window.onShare = { [weak self] request in self?.share(request) }
         return window
     }()
 
@@ -436,6 +437,22 @@ final class InkwellModel {
             lastError = error.localizedDescription
             refreshConfig()
         }
+    }
+
+    @ObservationIgnored private lazy var sharer = ShareWindow()
+
+    // The card is written beside the edition when it's set; the PNG is kept
+    // in share/ so it can be found again.
+    func share(_ request: ShareRequest) {
+        let data = InkwellPaths.dataDirectory()
+        sharer.share(card: data.appendingPathComponent("editions/\(request.date)-share.html"),
+                     png: data.appendingPathComponent("share/inkwell-\(request.date).png"))
+    }
+
+    func shareLatest() {
+        guard let date = status.latest?.date, let url = URL(string: "inkwell-daily://share?date=\(date)"),
+              let request = ShareRequest(url: url) else { return }
+        share(request)
     }
 
     func ratePortrait(_ rating: PortraitRating) {

@@ -34,6 +34,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func application(_ application: NSApplication, open urls: [URL]) {
         for url in urls {
             if let rating = PortraitRating(url: url) { model.ratePortrait(rating) }
+            if let request = ShareRequest(url: url) { model.share(request) }
         }
     }
 
@@ -76,6 +77,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         open.target = self
         open.isEnabled = model.status.latest != nil && !model.isBuilding
         menu.addItem(open)
+
+        let share = NSMenuItem(title: "Share Today's Paper…", action: #selector(shareLatest), keyEquivalent: "")
+        share.target = self
+        share.isEnabled = open.isEnabled
+        menu.addItem(share)
 
         let browser = NSMenuItem(title: "Open in Browser", action: #selector(openInBrowser), keyEquivalent: "")
         browser.target = self
@@ -218,6 +224,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func openPaper() {
         model.openPaper()
         rebuildMenu()
+    }
+
+    @objc private func shareLatest() {
+        model.shareLatest()
     }
 
     @objc private func openInBrowser() {
