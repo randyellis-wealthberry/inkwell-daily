@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Inkwell Daily: a morning newspaper about yesterday's agent work and commits.
+// Inkwell: a morning newspaper about yesterday's agent work and commits.
 // The command list lives in ../lib/usage.js, so the bundled standalone build
 // never has to read its own executable to print help.
 
@@ -514,11 +514,20 @@ function themeCommand(opt, cfg) {
 
 // `font` lists the free Google Font pairings; with an id it sets the next
 // edition's type. No unlocking here: every pairing is free.
-// `style [flat|table]`: a flat page, or the paper lying on a table.
+// `style [id]`: the paper on a table, in one of the scenes, or flat.
+const STYLE_NOTES = {
+  table: "On the table: paper grain, a fold and shadows",
+  sky: "In the sky: daylight over a bank of cloud",
+  space: "Zero gravity: a sheet adrift over a nebula",
+  nomad: "Digital nomad: a warm dusk over the city",
+  overlook: "View overlooking: ridges and a low sun",
+  tropical: "Tropical landscape: sea, sun and two palms",
+  flat: "Flat: the page as it's always been"
+}
 function styleCommand(opt, cfg) {
   const want = opt._[0]
   if (!want) {
-    for (const id of STYLES) process.stdout.write(id.padEnd(8) + (id === "table" ? "On the table: paper grain, a fold and shadows" : "Flat: the page as it's always been") + ((cfg.style || "table") === id ? " · in use" : "") + "\n")
+    for (const id of STYLES) process.stdout.write(id.padEnd(10) + (STYLE_NOTES[id] || id) + ((cfg.style || "table") === id ? " · in use" : "") + "\n")
     return
   }
   if (!STYLES.includes(want)) { process.stderr.write('No style "' + want + '". Try: ' + STYLES.join(", ") + "\n"); process.exit(2) }

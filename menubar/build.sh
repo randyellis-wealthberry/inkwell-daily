@@ -5,7 +5,7 @@ set -eu
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 MENUBAR="$ROOT/menubar"
-APP_NAME="Inkwell Daily"
+APP_NAME="Inkwell"
 EXECUTABLE="InkwellDaily"
 CONFIG="${CONFIGURATION:-release}"
 VERSION="$(node -p 'require(process.argv[1]).version' "$ROOT/package.json")"

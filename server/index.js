@@ -71,7 +71,7 @@ function clientIp(req, env) {
 // A connect link in a static page cannot carry the license, so it carries a
 // signed token and lands here. No auth header; the token is the proof.
 function sendHtml(res, status, message) {
-  const text = "<!doctype html><meta charset=\"utf-8\"><title>Inkwell Daily</title>" +
+  const text = "<!doctype html><meta charset=\"utf-8\"><title>Inkwell</title>" +
     "<body style=\"font:16px -apple-system,system-ui,sans-serif;padding:40px;max-width:38em;line-height:1.5\">" +
     "<p>" + message + "</p><p><a href=\"javascript:history.back()\">Back</a></p>"
   res.writeHead(status, { "content-type": "text/html; charset=utf-8", "content-length": Buffer.byteLength(text), "cache-control": "no-store" })

@@ -21,7 +21,7 @@ enum Keychain {
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service(id),
             kSecAttrAccount as String: account,
-            kSecAttrLabel as String: "Inkwell Daily · \(id) API key",
+            kSecAttrLabel as String: "Inkwell · \(id) API key",
             kSecValueData as String: Data(trimmed.utf8),
         ]
         if let access = access(id) { item[kSecAttrAccess as String] = access }
@@ -40,7 +40,7 @@ enum Keychain {
             if SecTrustedApplicationCreateFromPath(path, &app) == errSecSuccess, let app { apps.append(app) }
         }
         var access: SecAccess?
-        guard SecAccessCreate("Inkwell Daily · \(id) API key" as CFString, apps as CFArray, &access) == errSecSuccess else { return nil }
+        guard SecAccessCreate("Inkwell · \(id) API key" as CFString, apps as CFArray, &access) == errSecSuccess else { return nil }
         return access
     }
 

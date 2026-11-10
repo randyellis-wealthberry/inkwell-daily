@@ -10,8 +10,8 @@ test("help text names every command", () => {
 })
 
 test("a standalone build's launchd job runs the executable itself", () => {
-  const plist = P.launchdPlist("/Applications/Inkwell Daily.app/inkwell-daily", "", 5, "/tmp/inkwell")
-  assert.match(plist, /<string>\/Applications\/Inkwell Daily\.app\/inkwell-daily<\/string>/)
+  const plist = P.launchdPlist("/Applications/Inkwell.app/inkwell-daily", "", 5, "/tmp/inkwell")
+  assert.match(plist, /<string>\/Applications\/Inkwell\.app\/inkwell-daily<\/string>/)
   assert.match(plist, /<string>morning<\/string>/)
   assert.doesNotMatch(plist, /<string><\/string>/, "no empty program argument")
 })

@@ -27,7 +27,7 @@ class InkwellDaily < Formula
   end
 
   test do
-    assert_match "Inkwell Daily", shell_output("#{bin}/inkwell-daily help")
+    assert_match "Inkwell", shell_output("#{bin}/inkwell-daily help")
     assert_match "editions", shell_output("#{bin}/inkwell-daily status")
   end
 end

@@ -35,7 +35,7 @@ struct ProSettingsView: View {
 
     var body: some View {
         Form {
-            Section("Inkwell Daily Pro") {
+            Section("Inkwell Pro") {
                 Text("Five desks, read through your own connection and set beside your agent work. Read-only; nothing is posted.")
                     .font(.callout)
                     .foregroundStyle(.secondary)

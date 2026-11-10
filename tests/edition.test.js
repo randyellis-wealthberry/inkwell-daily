@@ -65,7 +65,7 @@ test("a day of your own work leads the paper", () => {
   assert.equal(ed.lead.kind, "desk")
   assert.equal(ed.lead.headline, "1 commit landed")
   assert.equal(ed.desk, null)
-  assert.equal(ed.title, "Ada's Inkwell Daily")
+  assert.equal(ed.title, "Ada's Inkwell")
   assert.match(ed.lead.paragraphs[0], /^At 4:19 pm, you asked Claude Code:$/)
   assert.equal(ed.lead.quote.text, "make me a beautiful weather plugin")
   assert.equal(ed.lead.quote.by, "You · 4:19 pm")
@@ -376,7 +376,7 @@ test("the page escapes what it prints and carries every section", () => {
 test("the masthead escapes the reader's name", () => {
   const html = renderEdition(compose(gathering({ reader: { name: "<img src=x onerror=alert(1)>" } })))
   assert.ok(!html.includes("<img src=x"))
-  assert.ok(html.includes("&lt;img src=x onerror=alert(1)&gt;&#39;s Inkwell <span>Daily</span>"))
+  assert.ok(html.includes("&lt;img src=x onerror=alert(1)&gt;&#39;s <span>Inkwell</span>"))
 })
 
 test("without the daily picks, the page leaves out the fold and today's picks", () => {
@@ -607,6 +607,18 @@ test("the paper lies on a table by default, and can go flat", () => {
   assert.match(restyle(flat, null, "inkwell", "table"), /<html lang="en" data-style="table">/)
   assert.match(restyle(table, null, "inkwell", "flat"), /<html lang="en" data-style="flat">/)
   assert.equal(styleTokens(null, "inkwell", "table").look, "table")
+})
+
+test("every scene is a real style with its own backdrop", () => {
+  const { renderEdition, restyle, styleTokens } = require("../lib/render.js")
+  for (const id of ["sky", "space", "nomad", "overlook", "tropical"]) {
+    const page = renderEdition(compose(gathering({ paperStyle: id })))
+    assert.match(page, new RegExp('<html lang="en" data-style="' + id + '">'), id + " lands on the page")
+    assert.match(page, new RegExp('\\[data-style="' + id + '"\\] \\.sheet'), id + " has a sheet rule")
+    assert.match(page, new RegExp('\\[data-style="' + id + '"\\] \\.card-body'), id + " has a share-card rule")
+    assert.equal(styleTokens(null, "inkwell", id).look, id)
+    assert.match(restyle(page, null, "inkwell", "table"), /data-style="table"/, "a scene can go back to the table")
+  }
 })
 
 test("the share card carries counts and the headline, never prompts, commits or desks", () => {

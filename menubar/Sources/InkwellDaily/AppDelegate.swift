@@ -17,8 +17,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if let button = item.button {
             button.image = InkwellGlyph.menuBar(unread: model.status.unread)
             button.image?.isTemplate = true
-            button.toolTip = "Inkwell Daily"
-            button.setAccessibilityLabel("Inkwell Daily")
+            button.toolTip = "Inkwell"
+            button.setAccessibilityLabel("Inkwell")
         }
         let menu = NSMenu()
         menu.delegate = self
@@ -52,7 +52,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 backing: .buffered,
                 defer: false
             )
-            window.title = "Inkwell Daily Pro"
+            window.title = "Inkwell Pro"
             window.isReleasedWhenClosed = false
             window.center()
             proWindow = window
@@ -169,11 +169,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         menu.addItem(.separator())
 
-        let about = NSMenuItem(title: "About Inkwell Daily", action: #selector(showAbout), keyEquivalent: "")
+        let about = NSMenuItem(title: "About Inkwell", action: #selector(showAbout), keyEquivalent: "")
         about.target = self
         menu.addItem(about)
 
-        let quit = NSMenuItem(title: "Quit Inkwell Daily", action: #selector(quit), keyEquivalent: "q")
+        let quit = NSMenuItem(title: "Quit Inkwell", action: #selector(quit), keyEquivalent: "q")
         quit.target = self
         menu.addItem(quit)
     }
@@ -182,20 +182,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let mainMenu = NSMenu()
 
         let appMenuItem = NSMenuItem()
-        let appMenu = NSMenu(title: "Inkwell Daily")
-        appMenu.addItem(withTitle: "About Inkwell Daily", action: #selector(showAbout), keyEquivalent: "")
+        let appMenu = NSMenu(title: "Inkwell")
+        appMenu.addItem(withTitle: "About Inkwell", action: #selector(showAbout), keyEquivalent: "")
         appMenu.addItem(.separator())
         let settings = NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
         settings.target = self
         appMenu.addItem(settings)
         appMenu.addItem(.separator())
-        appMenu.addItem(withTitle: "Hide Inkwell Daily", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
+        appMenu.addItem(withTitle: "Hide Inkwell", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
         let hideOthers = NSMenuItem(title: "Hide Others", action: #selector(NSApplication.hideOtherApplications(_:)), keyEquivalent: "h")
         hideOthers.keyEquivalentModifierMask = [.command, .option]
         appMenu.addItem(hideOthers)
         appMenu.addItem(withTitle: "Show All", action: #selector(NSApplication.unhideAllApplications(_:)), keyEquivalent: "")
         appMenu.addItem(.separator())
-        appMenu.addItem(withTitle: "Quit Inkwell Daily", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        appMenu.addItem(withTitle: "Quit Inkwell", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         appMenuItem.submenu = appMenu
         mainMenu.addItem(appMenuItem)
 
@@ -230,7 +230,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         let helpMenuItem = NSMenuItem()
         let helpMenu = NSMenu(title: "Help")
-        let help = NSMenuItem(title: "Inkwell Daily Help", action: #selector(openHelp), keyEquivalent: "?")
+        let help = NSMenuItem(title: "Inkwell Help", action: #selector(openHelp), keyEquivalent: "?")
         help.target = self
         helpMenu.addItem(help)
         helpMenuItem.submenu = helpMenu
@@ -291,7 +291,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 backing: .buffered,
                 defer: false
             )
-            window.title = "Inkwell Daily Settings"
+            window.title = "Inkwell Settings"
             window.isReleasedWhenClosed = false
             window.contentView = NSHostingView(rootView: SettingsView(model: model))
             window.center()

@@ -76,7 +76,7 @@ async function main() {
   adhocSign(BINARY)
 
   const check = execFileSync(BINARY, ["help"], { encoding: "utf8" })
-  if (!/Inkwell Daily/.test(check)) throw new Error("the standalone build did not print its help text")
+  if (!/Inkwell/.test(check)) throw new Error("the standalone build did not print its help text")
 
   const size = (fs.statSync(BINARY).size / (1024 * 1024)).toFixed(1)
   process.stdout.write("Built " + BINARY + " (" + size + " MB)\n")

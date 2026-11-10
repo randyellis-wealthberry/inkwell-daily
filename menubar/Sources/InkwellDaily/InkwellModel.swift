@@ -35,6 +35,11 @@ struct PaperLook: Identifiable, Sendable, Hashable {
 
     static let all: [PaperLook] = [
         .init(id: "table", name: "On the table"),
+        .init(id: "sky", name: "In the sky"),
+        .init(id: "space", name: "Zero gravity"),
+        .init(id: "nomad", name: "Digital nomad"),
+        .init(id: "overlook", name: "View overlooking"),
+        .init(id: "tropical", name: "Tropical landscape"),
         .init(id: "flat", name: "Flat"),
     ]
 }

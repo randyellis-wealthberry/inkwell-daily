@@ -45,7 +45,7 @@ jobs:
           node bin/inkwell-daily.js publish --dry-run > /dev/null
           f="$(node bin/inkwell-daily.js latest)"
           test -s "$f"
-          grep -q "Inkwell Daily" "$f"
+          grep -q "Inkwell" "$f"
 
       - name: Data folder is where the OS expects it
         shell: bash

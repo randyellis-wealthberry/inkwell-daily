@@ -15,7 +15,7 @@ set -eu
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 VERSION="$(node -p 'require(process.argv[1]).version' "$ROOT/package.json")"
 BINARY="$ROOT/dist/standalone/inkwell-daily"
-APP="$ROOT/dist/macos/Inkwell Daily.app"
+APP="$ROOT/dist/macos/Inkwell.app"
 OUT="$ROOT/dist/macos"
 WORK="$OUT/work"
 PKG="$OUT/InkwellDaily-$VERSION.pkg"
@@ -37,7 +37,7 @@ rm -rf "$WORK"
 mkdir -p "$WORK/root/usr/local/bin" "$WORK/root/Applications" "$WORK/dmg"
 
 install -m 0755 "$BINARY" "$WORK/root/usr/local/bin/inkwell-daily"
-ditto "$APP" "$WORK/root/Applications/Inkwell Daily.app"
+ditto "$APP" "$WORK/root/Applications/Inkwell.app"
 # Without this, pkgbuild turns extended attributes into `._` payload files.
 xattr -cr "$WORK/root" 2>/dev/null || true
 
@@ -64,8 +64,8 @@ else
   printf 'Built %s (unsigned)\n' "$PKG"
 fi
 
-install -m 0644 "$PKG" "$WORK/dmg/Inkwell Daily.pkg"
-hdiutil create -volname "Inkwell Daily" -srcfolder "$WORK/dmg" -ov -format UDZO "$DMG" >/dev/null
+install -m 0644 "$PKG" "$WORK/dmg/Inkwell.pkg"
+hdiutil create -volname "Inkwell" -srcfolder "$WORK/dmg" -ov -format UDZO "$DMG" >/dev/null
 
 printf 'Built %s\n' "$DMG"
 printf 'Built %s\n' "$MENUBAR_ZIP"
