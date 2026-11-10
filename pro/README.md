@@ -1,6 +1,6 @@
 # inkwell-pro
 
-The five Pro desks for Inkwell Daily: mail, city, notebook, daybook and project.
+The five Pro desks for Inkwell: mail, city, notebook, daybook and project.
 
 This package is thin on purpose. It sends one GET per desk to the desks service, which holds the Composio project key and reads your own Gmail, Slack, Notion, Google Calendar and Basecamp accounts. Nothing here knows a toolkit slug, a tool slug or an OAuth scope, so a provider change never needs a new release of this package.
 

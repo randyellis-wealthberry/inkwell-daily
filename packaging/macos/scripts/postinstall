@@ -22,15 +22,15 @@ as_user() {
   launchctl asuser "$UID_NUM" sudo -u "$CONSOLE_USER" -H "$@"
 }
 
-echo "Setting the Inkwell Daily morning run for $CONSOLE_USER..."
+echo "Setting the Inkwell morning run for $CONSOLE_USER..."
 as_user "$BIN" install >/dev/null 2>&1 || true
 
 echo "Setting yesterday's edition..."
 as_user "$BIN" build >/dev/null 2>&1 || true
 
-APP="/Applications/Inkwell Daily.app"
+APP="/Applications/Inkwell.app"
 if [ -d "$APP" ]; then
-  echo "Starting the Inkwell Daily menu bar app..."
+  echo "Starting the Inkwell menu bar app..."
   as_user open -a "$APP" >/dev/null 2>&1 || true
 fi
 

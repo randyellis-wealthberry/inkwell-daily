@@ -19,9 +19,9 @@ test("the edition number matches the other daily widgets' day number", () => {
 test("the masthead carries your first name, and Sunday's paper is the magazine", () => {
   assert.equal(Model.firstName("Ada Lovelace,,,", "ada"), "Ada")
   assert.equal(Model.firstName("", "ada"), "ada")
-  assert.equal(Model.mastheadTitle("Ada", false), "Ada's Inkwell Daily")
+  assert.equal(Model.mastheadTitle("Ada", false), "Ada's Inkwell")
   assert.equal(Model.mastheadTitle("James", true), "James' Inkwell Sunday")
-  assert.equal(Model.mastheadTitle("", false), "Inkwell Daily")
+  assert.equal(Model.mastheadTitle("", false), "Inkwell")
   assert.equal(Model.isWeekendEdition("2026-10-17"), true, "Saturday's news arrives on Sunday")
   assert.equal(Model.isWeekendEdition("2026-10-18"), false)
 })

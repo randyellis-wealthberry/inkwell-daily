@@ -1,4 +1,4 @@
-# Inkwell Daily installer for Windows.
+# Inkwell installer for Windows.
 #
 #   powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/randyellis-wealthberry/inkwell-daily/main/scripts/install.ps1 | iex"
 #
@@ -52,10 +52,10 @@ if (-not $Version) {
 if ($Version) {
   $Tag = if ($Version.StartsWith("v")) { $Version } else { "v$Version" }
   $Source = "https://github.com/$Repo/archive/refs/tags/$Tag.tar.gz"
-  Say "Installing Inkwell Daily $Tag..."
+  Say "Installing Inkwell $Tag..."
 } else {
   $Source = "https://github.com/$Repo/archive/refs/heads/main.tar.gz"
-  Say "Installing Inkwell Daily from main..."
+  Say "Installing Inkwell from main..."
 }
 
 & npm install -g $Source
@@ -76,5 +76,5 @@ Say "Setting yesterday's edition..."
 if ($LASTEXITCODE -eq 0 -and -not $NoOpen) { & inkwell-daily open }
 
 Say ""
-Say "Inkwell Daily is installed. Read it with: inkwell-daily open"
+Say "Inkwell is installed. Read it with: inkwell-daily open"
 Say "Change the morning hour with: inkwell-daily install --hour 7"

@@ -6,7 +6,7 @@ import WebKit
 /// The paper in its own window instead of a browser tab: one window, reused.
 /// It takes theme and font changes without reloading, reloads when a new
 /// edition is set, and handles the portrait's good / bad buttons itself, so
-/// no "Open Inkwell Daily?" prompt appears.
+/// no "Open Inkwell?" prompt appears.
 @MainActor
 final class PaperWindow: NSObject, WKNavigationDelegate, NSWindowDelegate {
     private let window: NSWindow
@@ -31,7 +31,7 @@ final class PaperWindow: NSObject, WKNavigationDelegate, NSWindowDelegate {
             defer: false
         )
         super.init()
-        window.title = "Inkwell Daily"
+        window.title = "Inkwell"
         window.isReleasedWhenClosed = false
         window.minSize = NSSize(width: 420, height: 400)
         // The theme bar on top, the paper filling the rest.
@@ -122,7 +122,7 @@ final class PaperWindow: NSObject, WKNavigationDelegate, NSWindowDelegate {
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-        window.title = webView.title ?? "Inkwell Daily"
+        window.title = webView.title ?? "Inkwell"
     }
 
     // A menu bar app goes back to having no Dock icon when its window closes.

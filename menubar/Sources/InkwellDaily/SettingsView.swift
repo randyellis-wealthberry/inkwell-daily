@@ -100,7 +100,7 @@ struct SettingsView: View {
             } header: {
                 Text("Make headlines")
             } footer: {
-                Text("Inkwell Daily Pro puts a photograph and an inspirational quote under the day's headline.")
+                Text("Inkwell Pro puts a photograph and an inspirational quote under the day's headline.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.leading)

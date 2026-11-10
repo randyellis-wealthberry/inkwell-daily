@@ -2,7 +2,7 @@
   "name": "inkwell-desks",
   "version": "0.1.0",
   "private": true,
-  "description": "The service that reads Inkwell Daily's Pro desks through Composio and returns them shaped for the paper.",
+  "description": "The service that reads Inkwell's Pro desks through Composio and returns them shaped for the paper.",
   "license": "MIT",
   "main": "index.js",
   "type": "module",

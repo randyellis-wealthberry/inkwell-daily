@@ -18,7 +18,7 @@ func editionIndexDecodes() throws {
         {"date":"2026-11-07","title":"Randy's Inkwell Sunday","headline":"1 commit landed in mussel",
          "deck":"A long session.","kicker":"Agent desk","minutes":3,"weekend":true,"late":true,
          "builtAt":1794080250306,"path":"/tmp/2026-11-07.html"},
-        {"date":"2026-11-06","title":"Randy's Inkwell Daily","headline":"A quiet Friday","minutes":2,
+        {"date":"2026-11-06","title":"Randy's Inkwell","headline":"A quiet Friday","minutes":2,
          "weekend":false,"late":false,"builtAt":1794080509911,"path":"/tmp/2026-11-06.html"}
       ]
     }

@@ -1,5 +1,5 @@
 #!/bin/sh
-# Inkwell Daily installer for macOS and Linux.
+# Inkwell installer for macOS and Linux.
 #
 #   curl -fsSL https://raw.githubusercontent.com/randyellis-wealthberry/inkwell-daily/main/scripts/install.sh | sh
 #
@@ -37,7 +37,7 @@ while [ $# -gt 0 ]; do
     --uninstall)   UNINSTALL=1; shift ;;
     -h|--help)
       cat <<'EOF'
-Inkwell Daily installer for macOS and Linux.
+Inkwell installer for macOS and Linux.
 
   curl -fsSL https://raw.githubusercontent.com/randyellis-wealthberry/inkwell-daily/main/scripts/install.sh | sh -s -- [options]
 
@@ -68,7 +68,7 @@ if [ "$UNINSTALL" = "1" ]; then
   if command -v npm >/dev/null 2>&1; then
     npm uninstall -g inkwell-daily >/dev/null 2>&1 || true
   fi
-  say "Inkwell Daily is off. Your editions were left in place."
+  say "Inkwell is off. Your editions were left in place."
   exit 0
 fi
 
@@ -107,7 +107,7 @@ fi
 if [ -n "$VERSION" ]; then
   case "$VERSION" in v*) TAG="$VERSION" ;; *) TAG="v$VERSION" ;; esac
   SOURCE="https://github.com/$REPO/archive/refs/tags/$TAG.tar.gz"
-  say "Installing Inkwell Daily $TAG..."
+  say "Installing Inkwell $TAG..."
 else
   # Prefer the newest release tag so an install is reproducible; fall back to
   # main when there is no release yet or GitHub's API is rate-limited.
@@ -115,10 +115,10 @@ else
     | sed -n 's/.*"tag_name":[[:space:]]*"v\{0,1\}\([^"]*\)".*/\1/p' | head -n 1 || true)"
   if [ -n "$VERSION" ]; then
     SOURCE="https://github.com/$REPO/archive/refs/tags/v$VERSION.tar.gz"
-    say "Installing Inkwell Daily v$VERSION..."
+    say "Installing Inkwell v$VERSION..."
   else
     SOURCE="https://github.com/$REPO/archive/refs/heads/main.tar.gz"
-    say "Installing Inkwell Daily from main..."
+    say "Installing Inkwell from main..."
   fi
 fi
 
@@ -168,5 +168,5 @@ else
 fi
 
 say ""
-say "Inkwell Daily is installed. Read it with: inkwell-daily open"
+say "Inkwell is installed. Read it with: inkwell-daily open"
 say "Change the morning hour with: inkwell-daily install --hour 7"

@@ -1,8 +1,8 @@
-# Inkwell Daily for macOS and Windows
+# Inkwell for macOS and Windows
 
 A morning newspaper about yesterday on your machine. It's set from what actually happened: the Claude Code and Codex sessions you ran, the commits that landed in the repos you worked in, and the weather. It's laid over your own desktop picture, in light or dark to match your system, as one page you open in your browser over coffee.
 
-Inkwell Daily is the desktop port of the [Omarchy plugin](https://github.com/wealthberrylabs/omarchy-daily-plugin). The builder is the same; the Omarchy bar, panel and sibling widgets (Elevation, Easel, Munger, Kickoff, Isobar, Carrel) aren't here, so their sections stay out of the page.
+Inkwell is the desktop port of the [Omarchy plugin](https://github.com/wealthberrylabs/omarchy-daily-plugin). The builder is the same; the Omarchy bar, panel and sibling widgets (Elevation, Easel, Munger, Kickoff, Isobar, Carrel) aren't here, so their sections stay out of the page.
 
 ## What's on the page
 
@@ -45,7 +45,7 @@ curl -fsSL https://raw.githubusercontent.com/randyellis-wealthberry/inkwell-dail
 ```
 
 The script checks for Node.js 20 or later (and installs it with Homebrew if
-it's missing), installs Inkwell Daily, schedules the 5am run, and opens the
+it's missing), installs Inkwell, schedules the 5am run, and opens the
 first edition. To choose another hour or skip the browser:
 
 ```bash
@@ -153,6 +153,7 @@ the menu bar app.
 | `inkwell-daily status` | `{"latest":…,"unread":…,"run":…,"checkedToday":…,"web":…}` |
 | `inkwell-daily theme [id]` | The milestone themes you've unlocked; set one, `auto`, or `milestone` for auto-advance |
 | `inkwell-daily font [id]` | List or set the paper's Google Font pairing |
+| `inkwell-daily style [id]` | List the paper's looks, or set one: `table`, `sky`, `space`, `nomad`, `overlook`, `tropical`, `flat` |
 | `inkwell-daily trend [--days N] [--date D] [--json]` | Tokens and prompts per day, with a forecast |
 | `inkwell-daily publish [--dry-run]` | Put the newest edition on claude.ai |
 | `inkwell-daily web` | The claude.ai link |
@@ -237,6 +238,29 @@ inkwell-daily font inkwell      # the default blackletter masthead
 
 Fonts and themes are independent: any pairing works with any palette.
 
+### Looks
+
+The paper also has seven looks. `table` is the default: a sheet with paper grain, a fold and a shadow. The scenes put the same sheet in a place — every backdrop is gradients and inline SVG, so nothing is downloaded.
+
+| Look | What it is |
+| --- | --- |
+| `table` | On the table: paper grain, a fold and shadows |
+| `sky` | In the sky: daylight over a bank of cloud |
+| `space` | Zero gravity: a sheet adrift over a nebula |
+| `nomad` | Digital nomad: a warm dusk over the city |
+| `overlook` | View overlooking: ridges and a low sun |
+| `tropical` | Tropical landscape: sea, sun and two palms |
+| `flat` | Flat: the page as it's always been |
+
+```bash
+inkwell-daily style              # list the looks
+inkwell-daily style space        # set the next edition's look
+inkwell-daily style tropical     # sea, sun and two palms
+inkwell-daily restyle            # apply the current look to the newest edition
+```
+
+The menu bar app's Settings has the same list, and applying a look redraws the open paper at once.
+
 ### The paper on the web
 
 This works as in the Omarchy version. A short background Claude Code session (`claude --bg`) gets only Read (inside the web copy's folder), Write (only on `web/link.txt`) and Artifact, in `dontAsk` mode. Before the first publish, run `claude` once in the data folder and accept the trust prompt. On Windows, use the native Claude Code install (`claude.exe`).
@@ -316,7 +340,7 @@ npm test
 
 ```bash
 npm run menubar:open  # build and install the menu bar app in /Applications
-npm run menubar       # dist/macos/Inkwell Daily.app
+npm run menubar       # dist/macos/Inkwell.app
 npm run bundle        # dist/standalone/inkwell-daily, no Node needed at runtime
 npm run pkg           # .pkg, .dmg, and InkwellDaily-menubar-<arch>.zip
 ```

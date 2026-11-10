@@ -1,6 +1,6 @@
 import Foundation
 
-/// Where Inkwell Daily puts its editions, and where its command may live.
+/// Where Inkwell puts its editions, and where its command may live.
 public enum InkwellPaths {
     public static func dataDirectory(
         home: URL = FileManager.default.homeDirectoryForCurrentUser

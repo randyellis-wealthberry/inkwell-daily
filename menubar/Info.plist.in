@@ -2,8 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
 <key>CFBundleIdentifier</key><string>com.wealthberrylabs.inkwell-daily.menubar</string>
-<key>CFBundleName</key><string>Inkwell Daily</string>
-<key>CFBundleDisplayName</key><string>Inkwell Daily</string>
+<key>CFBundleName</key><string>Inkwell</string>
+<key>CFBundleDisplayName</key><string>Inkwell</string>
 <key>CFBundleExecutable</key><string>InkwellDaily</string>
 <key>CFBundleIconFile</key><string>AppIcon</string>
 <key>CFBundleIconName</key><string>AppIcon</string>
