@@ -672,3 +672,19 @@ test("the library groups each category so it can flow in columns", () => {
   const html = renderIntegrations({ integrations: [{ slug: "gmail", name: "Gmail", category: "email", connected: true }] }, palette, "Ada", undefined, "2026-11-08")
   assert.match(html, /<section class="lib-group"><h2 class="lib-head">email<\/h2><div class="lib"><article class="int-card on"/)
 })
+
+test("a pictured lead splits: headline and picture beside the rail, the story beneath", () => {
+  const PIXEL = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
+  const pic = { image: "data:image/png;base64," + PIXEL, scene: "a lighthouse", quote: "Begin.", author: "Horace", provider: "recraft", drawnBy: "Recraft", date: "2026-10-15" }
+  const html = renderEdition(compose(gathering({ portrait: pic })))
+  assert.match(html, /<article class="lead split"><div class="lead-top">[\s\S]*?<figure class="portrait inspiration"[\s\S]*?<\/div><div class="lead-body">[\s\S]*?class="promptquote"/)
+  assert.match(renderEdition(compose(gathering())), /<article class="lead"><div class="lead-top">/, "no picture, no split")
+})
+
+test("on a working day the month's model bars sit under yesterday's models", () => {
+  const usage = [{ key: "2026-10-15", source: "claude", provider: "anthropic", model: "claude-opus-4-5-20251101", input: 1e6, output: 1e6, cacheRead: 0, cacheWrite: 0, calls: 1 }]
+  const prices = { "anthropic/claude-opus-4-5-20251101": { name: "Claude Opus 4.5", input: 5, output: 25, cacheRead: 0.5, cacheWrite: 6.25 } }
+  const html = renderEdition(compose(gathering({ modelUsage: usage, prices: prices })))
+  const day = html.slice(html.indexOf('class="models-day"'), html.indexOf('class="models-month"'))
+  assert.match(day, /This month, by model[\s\S]*class="model-bars"/)
+})
