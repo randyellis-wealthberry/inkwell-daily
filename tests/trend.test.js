@@ -74,3 +74,10 @@ test("token counts are compact in the blurb", () => {
   assert.equal(t.totalTokens, 1_600_000)
   assert.match(t.blurb, /1\.6M tokens/)
 })
+
+test("billions of tokens read as B, not thousands of M", () => {
+  const { formatTokens } = require("../lib/trend.js")
+  assert.equal(formatTokens(1.26e9), "1.3B")
+  assert.equal(formatTokens(2e9), "2B")
+  assert.equal(formatTokens(5.7e6), "5.7M")
+})
