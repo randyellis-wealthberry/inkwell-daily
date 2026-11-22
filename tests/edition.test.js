@@ -628,7 +628,7 @@ test("the share card carries counts and the headline, never prompts, commits or 
   ed.extras = { sections: [{ source: "gmail", kicker: "Gmail", headline: "Mail from Ada", deck: "", items: [{ title: "Ada", detail: "secret contract" }] }] }
   const card = renderShareCard(ed)
   assert.ok(card.includes(Model.longDate(g.key)) || card.includes(ed.longDate))
-  assert.ok(card.includes("<h1>" + renderEdition(ed).match(/<h1>([^<]*)<\/h1>/)[1] + "</h1>"), "the day's headline")
+  assert.ok(new RegExp('<h1 class="fit-[lms]">' + renderEdition(ed).match(/<h1>([^<]*)<\/h1>/)[1] + "</h1>").test(card), "the day's headline")
   for (const s of g.sessions) for (const p of s.prompts) assert.ok(!card.includes(p.text.slice(0, 30)), "no prompt text")
   for (const d of g.desk || []) for (const c of d.commits) assert.ok(!card.includes(c.subject), "no commit subjects")
   assert.ok(!/secret contract|Mail from Ada/.test(card), "no plugin desks")
@@ -640,4 +640,51 @@ test("the share button links to the app and stays off the web copy", () => {
   const html = renderEdition(compose(gathering()))
   assert.match(html, /<a class="share" href="inkwell-daily:\/\/share\?date=2026-10-15"/)
   assert.ok(!/class="share"/.test(webCopy(html).html.replace(/\.share[^{]*\{[^}]*\}/g, "")))
+})
+
+test("one repo on the press is singular", () => {
+  assert.equal(compose(gathering()).press, "One repo on the press")
+  const g = gathering()
+  g.desk = g.desk.concat([{ id: "b", name: "B", tracked: true, dirty: false, commits: [] }])
+  assert.match(compose(g).press, / repos on the press$/)
+})
+
+test("a chosen theme that is still locked is not marked in use", () => {
+  const ed = compose(gathering({ theme: Object.assign({}, gathering().theme, { chosen: "century" }) }))
+  const html = renderEdition(ed)
+  assert.ok(!/class="perk locked active/.test(html), "a locked card is never the active one")
+  assert.ok(!/<p class="kicker">In use<\/p><h3>Century/.test(html))
+  assert.ok(!/class="perk[^"]* next[ "]/.test(html), "the perk modifier does not collide with the tomorrow block's .next")
+})
+
+test("a short lead is set in one measure, with a raised initial before the quote", () => {
+  const html = renderEdition(compose(gathering()))
+  assert.match(html, /<div class="cols short">/)
+})
+
+test("the share card sets a short headline large", () => {
+  const card = renderShareCard(compose(gathering()))
+  assert.match(card, /<h1 class="fit-l">1 commit landed<\/h1>/)
+})
+
+test("the library groups each category so it can flow in columns", () => {
+  const palette = Model.parseColors('background = "#1a1b26"\nforeground = "#a9b1d6"')
+  const html = renderIntegrations({ integrations: [{ slug: "gmail", name: "Gmail", category: "email", connected: true }] }, palette, "Ada", undefined, "2026-11-08")
+  assert.match(html, /<section class="lib-group"><h2 class="lib-head">email<\/h2><div class="lib"><article class="int-card on"/)
+})
+
+test("a pictured lead splits: headline and picture beside the rail, the story beneath", () => {
+  const PIXEL = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
+  const pic = { image: "data:image/png;base64," + PIXEL, scene: "a lighthouse", quote: "Begin.", author: "Horace", provider: "recraft", drawnBy: "Recraft", date: "2026-10-15" }
+  const html = renderEdition(compose(gathering({ portrait: pic })))
+  assert.match(html, /<article class="lead split"><div class="lead-top">[\s\S]*?<figure class="portrait inspiration"[\s\S]*?<\/div><div class="lead-body">[\s\S]*?class="promptquote"/)
+  assert.match(renderEdition(compose(gathering())), /<article class="lead"><div class="lead-top">/, "no picture, no split")
+})
+
+test("on a working day the month's model bars sit under yesterday's models", () => {
+  const usage = [{ key: "2026-10-15", source: "claude", provider: "anthropic", model: "claude-opus-4-5-20251101", input: 1e6, output: 1e6, cacheRead: 0, cacheWrite: 0, calls: 1 }]
+  const prices = { "anthropic/claude-opus-4-5-20251101": { name: "Claude Opus 4.5", input: 5, output: 25, cacheRead: 0.5, cacheWrite: 6.25 } }
+  const html = renderEdition(compose(gathering({ modelUsage: usage, prices: prices })))
+  const day = html.slice(html.indexOf('class="models-day"'), html.indexOf('class="models-month"'))
+  assert.match(day, /This month, by model[\s\S]*class="model-bars"/)
 })

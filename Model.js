@@ -263,7 +263,9 @@ function habit(days, key) {
     if (on && k.slice(0, 7) === end.slice(0, 7)) month++
     cells.push({ key: k, day: c.getDate(), on: on, before: !!first && k < first, future: k > end, today: k === end })
   }
-  var run = readRun(have, end)
+  // The paper is set before its own morning is read, so an unread edition day
+  // leaves yesterday's run standing rather than breaking it.
+  var run = have[end] ? readRun(have, end) : readRun(have, shiftDateKey(end, -1))
   return {
     cells: cells,
     weekdays: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
@@ -272,7 +274,7 @@ function habit(days, key) {
     best: readBest(have),
     month: month,
     total: total,
-    runStart: run ? shiftDateKey(end, 1 - run) : "",
+    runStart: run ? shiftDateKey(have[end] ? end : shiftDateKey(end, -1), 1 - run) : "",
     monthLabel: MONTHS[d.getMonth()] + " " + d.getFullYear()
   }
 }

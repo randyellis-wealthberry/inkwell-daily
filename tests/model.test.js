@@ -92,7 +92,13 @@ test("the habit ledger holds the mornings the paper was opened", () => {
   assert.ok(old.cells.some(c => c.future && c.key === "2026-10-14"))
 
   assert.equal(Model.habitLine(Model.habit({}, "2026-10-14")), "The ledger opens")
-  assert.equal(Model.habitLine(Model.habit({ "2026-10-13": 1 }, "2026-10-14")), "The run starts again")
+  // The paper is set before its own morning is read: yesterday's run stands.
+  assert.equal(Model.habitLine(Model.habit({ "2026-10-13": 1 }, "2026-10-14")), "One morning running")
+  const pending = Model.habit(ledger.days, "2026-10-15")
+  assert.equal(pending.run, 3, "an unread edition day does not break the run")
+  assert.equal(pending.runStart, "2026-10-12")
+  // A missed morning does.
+  assert.equal(Model.habitLine(Model.habit({ "2026-10-12": 1 }, "2026-10-14")), "The run starts again")
 })
 
 test("the model desk ranks models by tokens and prices them at list rates", () => {
